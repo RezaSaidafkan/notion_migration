@@ -1,0 +1,21 @@
+[project]
+name = "notion-migration"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Reza Saidafkan",email = "93768131+rsaidafk@users.noreply.github.com"}
+]
+readme = "README.md"
+requires-python = ">=3.13,<4"
+dependencies = [
+    "dotenv (>=0.9.9,<0.10.0)",
+    "notion-client (>=2.5.0,<3.0.0)",
+    "dataclasses-json (>=0.6.7,<0.7.0)"
+]
+
+[tool.poetry]
+packages = [{include = "notion_migration", from = "src"}]
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
