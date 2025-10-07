@@ -10,7 +10,8 @@ requires-python = ">=3.13,<4"
 dependencies = [
     "dotenv (>=0.9.9,<0.10.0)",
     "notion-client (>=2.5.0,<3.0.0)",
-    "dataclasses-json (>=0.6.7,<0.7.0)"
+    "dataclasses-json (>=0.6.7,<0.7.0)",
+    "python-dateutil (>=2.9.0.post0,<3.0.0)"
 ]
 
 [tool.poetry]

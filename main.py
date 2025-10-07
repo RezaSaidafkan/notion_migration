@@ -14,12 +14,13 @@ class Runner:
         self.service = spn.ServicePage(repo=repo_notion)
 
     def run(self, parent_page_id: str, database_id: str) -> List[ClientPage]:
-        return self.service.get_descendants_of_parent(parent_page_id, database_id)
+        return self.service.get_descendants_of_page(parent_page_id, database_id)
     
     
     
 if __name__ == "__main__":
     runner = Runner()
     pages = runner.run(parent_page_id=os.getenv("SOURCE_PARENT_PAGE"), database_id=os.getenv("LIFE_STYLE_DB"))
+    print(f"Found {len(pages)} pages:")
     for page in pages:
         pprint.pprint(page)  # or any other processing

@@ -9,7 +9,7 @@ class ServicePageInterface(ABC):
         pass
     
     @abstractmethod
-    def get_descendants_of_parent(self, parent_page_id: str, database_id: str) -> List[ClientPage]:
+    def get_descendants_of_page(self, parent_page_id: str, database_id: str) -> List[ClientPage]:
         pass
     
     @abstractmethod

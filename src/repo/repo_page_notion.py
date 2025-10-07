@@ -1,5 +1,7 @@
-from typing import List, Dict, Any 
-from src.models.client_models import ClientPage, ClientPage, ClientPageProperties, ClientPageRelations
+from typing import List, Dict, Any, Union
+
+from marshmallow import pprint
+from src.models.client_models import ClientPage, ClientPageProperties, ClientPageRelations
 from src.models.api_models import ApiPage
 from notion_client import Client
 from src.repo.repo_page_interface import RepoPageInterface
@@ -50,17 +52,27 @@ class NotionClientAPI(RepoPageInterface):
 
 
 def page_domain_convert(apiPage: ApiPage) -> ClientPage:
-    relations = [] 
-    if apiPage.properties.Ancestors:
-        relations.extend(apiPage.properties.Ancestors)
-    if apiPage.properties.Descendants:
-        relations.extend(apiPage.properties.Descendants)
-    if apiPage.properties.Journals:
-        relations.extend(apiPage.properties.Journals)
-    properties = apiPage.to_dict()
-    properties.pop("id", None)
-    properties.pop("icon", None)
-    properties.pop("Ancestors", None)
-    properties.pop("Descendants", None)
-    properties.pop("Journals", None)
-    return ClientPage(id=apiPage.id, icon=apiPage.icon, properties=properties, relations=relations)
+    props = apiPage.properties
+
+    # Build client-facing properties using the typed dataclasses
+    client_props = ClientPageProperties(
+        Type=props.Type,
+        Title=props.Title,
+        Assignee=props.Assignee,
+        Priority=props.Priority,
+        Urgency=props.Urgency,
+        Status=props.Status,
+        Timeline=props.Timeline,
+        Description=props.Description,
+        Ancestors=props.Ancestors,
+        Descendants=props.Descendants,
+        Journals=props.Journals,
+    )
+
+    client_relations = ClientPageRelations(
+        Journals=props.Journals,
+        Ancestors=props.Ancestors,
+        Descendants=props.Descendants,
+    )
+
+    return ClientPage(id=apiPage.id, icon=apiPage.icon, properties=client_props, relations=client_relations)

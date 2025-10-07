@@ -18,8 +18,8 @@ class ServicePage(ServicePageInterface):
         
     def get_page(self, page_id: str) -> ClientPage:
         raise NotImplementedError("This method should be implemented in the repository layer.")
-    
-    def get_descendants_of_parent(self, parent_page_id: str, database_id: str) -> List[ClientPage]:
+
+    def get_descendants_of_page(self, page_id: str, database_id: str) -> List[ClientPage]:
         """Return pages whose 'Ancestor' relation contains the given parent.
 
         This method contains the schema knowledge ('Ancestor' relation) and
@@ -29,7 +29,7 @@ class ServicePage(ServicePageInterface):
             database_id=database_id,
             filter={
                 "property": "Ancestors",
-                "relation": {"contains": parent_page_id},
+                "relation": {"contains": page_id},
             },
         )
 
