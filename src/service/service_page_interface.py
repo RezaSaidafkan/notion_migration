@@ -9,11 +9,7 @@ class ServicePageInterface(ABC):
         pass
     
     @abstractmethod
-    def get_descendants_of_page(self, parent_page_id: str, database_id: str) -> List[ClientPage]:
-        pass
-    
-    @abstractmethod
-    def get_page_hierarchy(self, page_id: str) -> dict:
+    def build_page_hierarchy(self, parent_page: ClientPage, database_id: str) -> None:
         pass
     
     @abstractmethod

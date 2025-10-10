@@ -1,8 +1,8 @@
-from typing import List
+from typing import Generator, List
 
 from src.service.service_page_interface import ServicePageInterface
 from src.repo.repo_page_interface import RepoPageInterface
-from src.models.client_models import ClientPage
+from src.models.client_models import ClientPage, ClientPageRelations
 
 
 class ServicePage(ServicePageInterface):
@@ -17,21 +17,31 @@ class ServicePage(ServicePageInterface):
         self._repo = repo
         
     def get_page(self, page_id: str) -> ClientPage:
-        raise NotImplementedError("This method should be implemented in the repository layer.")
+        return self._repo.get_page(page_id)
 
-    def get_descendants_of_page(self, page_id: str, database_id: str) -> List[ClientPage]:
+    def build_page_hierarchy(self, page: ClientPage, database_id: str, level: int = 0) -> Generator[ClientPage, None, None]:
         """Return pages whose 'Ancestor' relation contains the given parent.
 
         This method contains the schema knowledge ('Ancestor' relation) and
         delegates to the repository's generic `query_database` method.
         """
-        return self._repo.query_database(
+        sub_pages = self._repo.query_database(
             database_id=database_id,
             filter={
                 "property": "Ancestors",
-                "relation": {"contains": page_id},
+                "relation": {"contains": page.id},
             },
         )
+        
+        page.relations = ClientPageRelations(Descendants=None, Ancestors=None, Journals=None)
+
+        if sub_pages:
+            # refresh the relations on the parent page to include the fetched children
+            page.relations = ClientPageRelations(Descendants=sub_pages, Ancestors=None, Journals=None)
+            for sub_page in sub_pages:
+                yield from self.build_page_hierarchy(sub_page, database_id, level + 1)
+        if level == 1:
+            yield page
 
     def get_page_hierarchy(self, page_id: str) -> dict:
         raise NotImplementedError("This method should be implemented in the repository layer.")

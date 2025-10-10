@@ -13,7 +13,7 @@ class NotionClientAPI(RepoPageInterface):
     
     def get_page(self, page_id: str) -> ClientPage:
         response = self.notion.pages.retrieve(page_id=page_id)
-        return page_domain_convert(response)
+        return page_domain_convert(ApiPage.from_dict(response))
 
     def query_database(self, database_id: str, filter: Dict[str, Any] = None) -> List[ClientPage]:
         results = []
@@ -64,15 +64,16 @@ def page_domain_convert(apiPage: ApiPage) -> ClientPage:
         Status=props.Status,
         Timeline=props.Timeline,
         Description=props.Description,
-        Ancestors=props.Ancestors,
-        Descendants=props.Descendants,
-        Journals=props.Journals,
+        # Ancestors=props.Ancestors,
+        # Descendants=props.Descendants,
+        # Journals=props.Journals,
     )
 
-    client_relations = ClientPageRelations(
-        Journals=props.Journals,
-        Ancestors=props.Ancestors,
-        Descendants=props.Descendants,
-    )
+    # client_relations = ClientPageRelations(
+    #     Journals=props.Journals,
+    #     Ancestors=props.Ancestors,
+    #     Descendants=props.Descendants,
+    # )
 
-    return ClientPage(id=apiPage.id, icon=apiPage.icon, properties=client_props, relations=client_relations)
+    # return ClientPage(id=apiPage.id, icon=apiPage.icon, properties=client_props, relations=client_relations)
+    return ClientPage(id=apiPage.id, icon=apiPage.icon, properties=client_props)
