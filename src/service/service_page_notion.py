@@ -43,30 +43,24 @@ class ServicePage(ServicePageInterface):
         if level == 1:
             yield page
 
-    def get_page_hierarchy(self, page_id: str) -> dict:
-        raise NotImplementedError("This method should be implemented in the repository layer.")
-    
     def create_or_update_page(self, page: ClientPage) -> ClientPage:
-        raise NotImplementedError("This method should be implemented in the repository layer.")
-    
-    def create_page_hierarchy(self, parent_id: str, properties: dict, children: List[dict]) -> ClientPage:
-        raise NotImplementedError("This method should be implemented in the repository layer.")
+        raise NotImplementedError("This method should be implemented in the service layer.")
     
     def add_relations_to_page(self, page: ClientPage, relations: List[str]) -> None:
-        raise NotImplementedError("This method should be implemented in the repository layer.")
+        raise NotImplementedError("This method should be implemented in the service layer.")
     
     def remove_relations_from_page(self, page: ClientPage, relations: List[str]) -> None:
-        raise NotImplementedError("This method should be implemented in the repository layer.")
-    
-    def migrate_page(self, page_id: str) -> None:
-        raise NotImplementedError("This method should be implemented in the repository layer.")
-    
-    def migrate_pages(self, page_ids: List[str]) -> None:
-        raise NotImplementedError("This method should be implemented in the repository layer.")
-    
+        raise NotImplementedError("This method should be implemented in the service layer.")
+
+    def migrate_page(self, page: ClientPage, sourceDatabaseId: str, destinationDatabaseId: str) -> None:
+        raise NotImplementedError("This method should be implemented in the service layer.")
+
+    def migrate_pages(self, pages: List[ClientPage], sourceDatabaseId: str, destinationDatabaseId: str) -> None:
+        raise NotImplementedError("This method should be implemented in the service layer.")
+
+    def verify_page_migration(self, page: ClientPage) -> ClientPage:
+        raise NotImplementedError("This method should be implemented in the service layer.")
+
     def migrate_all_pages(self) -> None:
-        raise NotImplementedError("This method should be implemented in the repository layer.")
-    
-    def verify_page_migration(self, page_id: str) -> ClientPage:
-        raise NotImplementedError("This method should be implemented in the repository layer.")
+        raise NotImplementedError("This method should be implemented in the service layer.")
     
