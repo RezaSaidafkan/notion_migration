@@ -95,7 +95,7 @@ class StatusProperty(DataClassJsonMixin):
 @dataclass
 class RichTextText(DataClassJsonMixin):
     content: str
-    link: Any
+    link: Optional[Any] = None
 
 
 @dataclass
@@ -113,11 +113,17 @@ class RichTextItem(DataClassJsonMixin):
     type: str
     annotations: Annotations
     plain_text: str
-    text: RichTextText
-    href: Optional[str]
+    text: Optional[RichTextText] = None
+    href: Optional[str] = None
     
     def __repr__(self):
-        return self.text
+        # text can be None when Notion returns a plain_text-only item or when
+        # the JSON payload doesn't include the nested 'text' object. Be defensive.
+        if self.text:
+            return self.text.content
+        if self.plain_text:
+            return self.plain_text
+        return ""
 
 
 @dataclass
