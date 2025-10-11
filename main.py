@@ -5,7 +5,7 @@ from typing import List
 import dotenv
 import os
 import pprint
-from asyncio import run
+from time import time
 
 dotenv.load_dotenv()
 
@@ -22,6 +22,9 @@ class Runner:
     
     
 if __name__ == "__main__":
+    start_time = time()
     runner = Runner()
     pages = runner.run(parent_page_id=os.getenv("SOURCE_PARENT_PAGE"), database_id=os.getenv("LIFE_STYLE_DB"))
+    end_time = time()
+    print(f"Synchronous Execution time: {end_time - start_time} seconds")
     
