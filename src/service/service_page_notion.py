@@ -19,27 +19,38 @@ class ServicePage(ServicePageInterface):
     def get_page(self, page_id: str) -> ClientPage:
         return self._repo.get_page(page_id)
 
-    def build_page_hierarchy(self, page: ClientPage, database_id: str, level: int = 0) -> Generator[ClientPage, None, None]:
+    def build_page_hierarchy(self, page: ClientPage, source_database_id: str, journal_database_id: str, journal_db_relation: str, level: int = 0) -> Generator[ClientPage, None, None]:
         """Return pages whose 'Ancestor' relation contains the given parent.
 
         This method contains the schema knowledge ('Ancestor' relation) and
         delegates to the repository's generic `query_database` method.
         """
         sub_pages = self._repo.query_database(
-            database_id=database_id,
+            database_id=source_database_id,
             filter={
                 "property": "Ancestors",
                 "relation": {"contains": page.id},
             },
         )
         
+        journal_pages = self._repo.query_database(
+            database_id=journal_database_id,
+            filter={
+                "property": journal_db_relation,
+                "relation": {"contains": page.id},
+            },
+        )
+        
         page.relations = ClientPageRelations(Descendants=None, Ancestors=None, Journals=None)
-
+        
+        if journal_pages:
+            page.relations.Journals=journal_pages
+        
         if sub_pages:
             # refresh the relations on the parent page to include the fetched children
-            page.relations = ClientPageRelations(Descendants=sub_pages, Ancestors=None, Journals=None)
+            page.relations.Descendants=sub_pages
             for sub_page in sub_pages:
-                yield from self.build_page_hierarchy(sub_page, database_id, level + 1)
+                yield from self.build_page_hierarchy(sub_page, source_database_id=source_database_id, journal_database_id=journal_database_id, journal_db_relation=journal_db_relation, level=level + 1)
         if level == 1:
             yield page
 
