@@ -1,26 +1,24 @@
-from typing import List, Dict, Any, Union
-
-from marshmallow import pprint
+from typing import List, Dict, Any
 from src.models.client_models import ClientPage, ClientPageProperties, ClientPageRelations
 from src.models.api_models import ApiPage
-from notion_client import Client
+from notion_client import AsyncClient as Client
 from src.repo.repo_page_interface import RepoPageInterface
     
 
 class NotionClientAPI(RepoPageInterface):
     def __init__(self, notion_token: str):
         self.notion = Client(auth=notion_token)
-    
-    def get_page(self, page_id: str) -> ClientPage:
-        response = self.notion.pages.retrieve(page_id=page_id)
+
+    async def get_page(self, page_id: str) -> ClientPage:
+        response = await self.notion.pages.retrieve(page_id=page_id)
         return page_domain_convert(ApiPage.from_dict(response))
 
-    def query_database(self, database_id: str, filter: Dict[str, Any] = None) -> List[ClientPage]:
+    async def query_database(self, database_id: str, filter: Dict[str, Any] = None) -> List[ClientPage]:
         results = []
         has_more = True
         cursor = None
         while has_more:
-            resp = self.notion.databases.query(
+            resp = await self.notion.databases.query(
                 **{
                     "database_id": database_id,
                     "start_cursor": cursor,
@@ -34,8 +32,8 @@ class NotionClientAPI(RepoPageInterface):
         converted_results = [page_domain_convert(apiPage) for apiPage in results]
         return converted_results
 
-    def create_page(self, database_id: str, pageProperties: ClientPageProperties, pageRelations: List[ClientPageRelations]) -> ClientPage:
-        response = self.notion.pages.create(
+    async def create_page(self, database_id: str, pageProperties: ClientPageProperties, pageRelations: List[ClientPageRelations]) -> ClientPage:
+        response = await self.notion.pages.create(
             **{
                 "parent": {"database_id": database_id},
                 "properties": pageProperties.to_json(),
@@ -44,10 +42,10 @@ class NotionClientAPI(RepoPageInterface):
         )
         return page_domain_convert(ApiPage.from_dict(response))
 
-    def update_page(self, page_id: str, properties: Dict[str, Any]) -> ClientPage:
+    async def update_page(self, page: ClientPage, properties: Dict[str, Any]) -> ClientPage:
         raise NotImplementedError("Updating pages is not implemented in NotionClientAPI")
 
-    def append_page_relations(self, page_id: str, relations: List[str]) -> None:
+    async def append_page_relations(self, page: ClientPage, relations: ClientPageRelations) -> None:
         raise NotImplementedError("Appending relations is not implemented in NotionClientAPI")
 
 

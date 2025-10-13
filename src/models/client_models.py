@@ -1,12 +1,12 @@
 from dataclasses import dataclass
-from typing import Any, List, Optional
+from typing import List, Optional
 from dataclasses_json import DataClassJsonMixin
-from models.api_models import DateProperty, PeopleProperty, RelationProperty, RichTextProperty, SelectProperty, StatusProperty, Icon, TitleProperty
+from models.api_models import DateProperty, PeopleProperty, RichTextProperty, SelectProperty, StatusProperty, Icon, TitleProperty
 
 
 @dataclass
 class ClientPageProperties(DataClassJsonMixin):
-    Type: Optional[TitleProperty]
+    Type: Optional[SelectProperty]
     Title: Optional[TitleProperty]
     Assignee: Optional[PeopleProperty]
     Priority: Optional[SelectProperty]
@@ -24,7 +24,7 @@ class ClientPageProperties(DataClassJsonMixin):
 
 @dataclass
 class ClientPageRelations(DataClassJsonMixin):
-    Journals: Optional[List["ClientPage"]]
+    Journals: Optional[List["JournalPage"]]
     Ancestors: Optional[List["ClientPage"]]
     Descendants: Optional[List["ClientPage"]]
     
@@ -59,6 +59,29 @@ class ClientPage(DataClassJsonMixin):
         # ensure every line in rels is indented one more tab for the Relations: block
         rels_indented = indent(rels, '\t')
         return f"{icon} {self.properties}\n\tRelations:\n\t{rels_indented}"
+    
+
+@dataclass
+class JournalPage(DataClassJsonMixin):
+    id: str
+    properties: "JournalPageProperties"
+    icon: Optional[Icon] = None
+    
+    def __repr__(self):
+        icon = self.icon.__repr__() if self.icon else ''
+        return f"{icon} {self.properties}"
+    
+
+@dataclass
+class JournalPageProperties(DataClassJsonMixin):
+    Title: Optional[TitleProperty]
+    Date: Optional[DateProperty]
+    Description: Optional[RichTextProperty]
+    
+    def __repr__(self):
+        title = self.Title.__repr__() if self.Title else "<Title: None>"
+        date = self.Date.__repr__() if self.Date else "<Date: None>"
+        return f"{title} | {date}"
 
 def indent(text: str, prefix: str = '\t') -> str:
     if not text:
