@@ -33,14 +33,7 @@ class NotionClientAPI(RepoPageInterface):
         return converted_results
 
     async def create_page(self, database_id: str, pageProperties: ClientPageProperties, pageRelations: List[ClientPageRelations]) -> ClientPage:
-        response = await self.notion.pages.create(
-            **{
-                "parent": {"database_id": database_id},
-                "properties": pageProperties.to_json(),
-                "children": [relation.to_json() for relation in pageRelations] or [],
-            }
-        )
-        return page_domain_convert(ApiPage.from_dict(response))
+        raise NotImplementedError("Creating pages is not implemented in NotionClientAPI")
 
     async def update_page(self, page: ClientPage, properties: Dict[str, Any]) -> ClientPage:
         raise NotImplementedError("Updating pages is not implemented in NotionClientAPI")
