@@ -1,5 +1,7 @@
 from typing import AsyncGenerator, List
 
+import pprint
+
 from src.service.service_page_interface import ServicePageInterface
 from src.repo.repo_page_interface import RepoPageInterface
 from src.models.client_models import ClientPage, ClientPageRelations
@@ -22,74 +24,63 @@ class ServicePage(ServicePageInterface):
     async def get_page(self, page_id: str) -> ClientPage:
         return await self._repo.get_page(page_id)
 
-    async def build_page_hierarchy(self, page: ClientPage, source_database_id: str, journal_database_id: str, journal_db_relation: str, level: int = 0) -> AsyncGenerator[ClientPage, None]:
-        """Return pages whose 'Ancestor' relation contains the given parent.
+    async def build_page_hierarchy(self, root_page: ClientPage, source_database_id: str, journal_database_id: str, journal_db_relation: str, level: int = 0) -> List[ClientPage]:
+        """
+        Return pages whose 'Ancestor' relation contains the given parent.
 
         This method contains the schema knowledge ('Ancestor' relation) and
         delegates to the repository's generic `query_database` method.
         """
-        sub_pages_task = asyncio.create_task(
-            self._repo.query_database(
-            database_id=source_database_id,
-            filter={
-                "property": "Ancestors",
-                "relation": {"contains": page.id},
-            },
-            ),
-        )
-        journal_pages_task = asyncio.create_task(
-            self._repo.query_database(
-            database_id=journal_database_id,
-            filter={
-                "property": journal_db_relation,
-                "relation": {"contains": page.id},
-            },
-            ),
-        )
+        async def _timed(coro, page: ClientPage, label: str):
+            t0 = perf_counter()
+            res = await coro
+            t1 = perf_counter()
+            print(f"[TIMING] {label} page={page.id} took={t1-t0:.3f}s")
+            return res
         
-        # run both DB queries concurrently and report individual timings from _timed
-        sub_pages, journal_pages = await asyncio.gather(sub_pages_task, journal_pages_task)
+        collected: list[ClientPage] = []
 
-        page.relations = ClientPageRelations(Descendants=None, Ancestors=None, Journals=None)
-        
-        if journal_pages:
-            page.relations.Journals = journal_pages
+        async def process(page: ClientPage, level: int, tg: asyncio.TaskGroup):
+            # create the coroutines and run them concurrently with timing
+            sub_coro = self._repo.query_database(
+                database_id=source_database_id,
+                filter={
+                    "property": "Ancestors",
+                    "relation": {"contains": page.id},
+                },
+            )
+            journ_coro = self._repo.query_database(
+                database_id=journal_database_id,
+                filter={
+                    "property": journal_db_relation,
+                    "relation": {"contains": page.id},
+                },
+            )
 
-        if sub_pages:
-            print(f"[TRACE] page={page.id} level={level} sub_pages={len(sub_pages)}")
-            # refresh the relations on the parent page to include the fetched children
-            page.relations.Descendants=sub_pages
+            sub_pages_tasks, journal_pages_tasks = await asyncio.gather(
+                _timed(sub_coro, page, "query_database:sub_pages"),
+                _timed(journ_coro, page, "query_database:journal_pages")
+            )
+
+            page.relations = ClientPageRelations(Descendants=None, Ancestors=None, Journals=None)
+            if journal_pages_tasks:
+                page.relations.Journals = journal_pages_tasks
+
+            if sub_pages_tasks:
+                page.relations.Descendants = sub_pages_tasks
+                for sub_page in page.relations.Descendants:
+                    tg.create_task(process(sub_page, level + 1, tg))
+
+            if level == 1:
+                pprint.pprint(page)
+                collected.append(page)
+                
+                
+        async with asyncio.TaskGroup() as tg:
+            tg.create_task(process(root_page, level, tg))
             
-            for sub_page in sub_pages:
-                async for item in self.build_page_hierarchy(sub_page, source_database_id, journal_database_id, journal_db_relation, level + 1):
-                    yield item
-            
-            # sub_pages_tasks = []
-            # for sub_page in sub_pages:
-            #     sub_pages_tasks.append(asyncio.create_task(self.build_page_hierarchy(sub_page, source_database_id, journal_database_id, level + 1)))
-            
-            #     for sub_page_task in asyncio.as_completed(sub_pages_tasks):
-            #         async for item in await sub_page_task:
-            #             yield item
-            
-            # sub_pages_tasks = []
-            # for sub_page in sub_pages:
-            #     sub_pages_tasks.append([asyncio.create_task(p) async for p in self.build_page_hierarchy(sub_page, source_database_id, journal_db_id, level + 1)])
-            #     # asyncio.gather(*[item for sublist in sub_pages_tasks for item in sublist])
-            #     asyncio.gather(*sub_pages_tasks)
-
-            # sub_pages_tasks = []
-            # for sub_page in sub_pages:
-            #     async for item in self.build_page_hierarchy(sub_page, source_database_id, journal_db_id, level + 1):
-            #         asyncio.create_task(item)
-            #         sub_pages_tasks.append(item)
-                    
-            #     # asyncio.gather(*[item for sublist in sub_pages_tasks for item in sublist])
-            #     asyncio.gather(*sub_pages_tasks)
-
-        if level == 1:
-            yield page
-
+        return collected
+  
     async def create_or_update_page(self, page: ClientPage) -> ClientPage:
         raise NotImplementedError("This method should be implemented in the service layer.")
 
@@ -110,4 +101,3 @@ class ServicePage(ServicePageInterface):
 
     async def migrate_all_pages(self) -> None:
         raise NotImplementedError("This method should be implemented in the service layer.")
-    

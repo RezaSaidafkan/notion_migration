@@ -9,7 +9,7 @@ class ServicePageInterface(ABC):
         pass
     
     @abstractmethod
-    def build_page_hierarchy(self, parent_page: ClientPage, database_id: str) -> None:
+    def build_page_hierarchy(self, parent_page: ClientPage, database_id: str) -> List[ClientPage]:
         pass
     
     @abstractmethod
