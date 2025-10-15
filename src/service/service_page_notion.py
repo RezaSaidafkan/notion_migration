@@ -1,10 +1,12 @@
-from typing import AsyncGenerator, List
+import enum
+from typing import AsyncGenerator, List, Literal, Union
 
 import pprint
 
 from src.service.service_page_interface import ServicePageInterface
 from src.repo.repo_page_interface import RepoPageInterface
-from src.models.client_models import ClientPage, ClientPageRelations
+from src.models.client_models import ClientPage, ClientRelation
+from src.constants.literal_definitions import DatabaseName, JournalName
 import asyncio
 from time import perf_counter
 
@@ -20,11 +22,11 @@ class ServicePage(ServicePageInterface):
 
     def __init__(self, repo: RepoPageInterface) -> None:
         self._repo = repo
-    
-    async def get_page(self, page_id: str) -> ClientPage:
-        return await self._repo.get_page(page_id)
 
-    async def build_page_hierarchy(self, root_page: ClientPage, source_database_id: str, journal_database_id: str, journal_db_relation: str, level: int = 0) -> List[ClientPage]:
+    async def get_page(self, page_id: str, database: Union[DatabaseName, JournalName]) -> ClientPage:
+        return await self._repo.get_page(page_id, database)
+
+    async def build_page_hierarchy(self, root_page: ClientPage, source_database_id: str, source_db_name: DatabaseName, journal_database_id: str, journal_db_name: JournalName, level: int = 0) -> List[ClientPage]:
         """
         Return pages whose 'Ancestor' relation contains the given parent.
 
@@ -40,10 +42,17 @@ class ServicePage(ServicePageInterface):
         
         collected: list[ClientPage] = []
 
-        async def process(page: ClientPage, level: int, tg: asyncio.TaskGroup):
+        async def process(page: ClientPage, 
+                          source_database_id: str, 
+                          source_db_name: DatabaseName, 
+                          journal_database_id: str,
+                          journal_db_name: JournalName, 
+                          level: int,
+                          tg: asyncio.TaskGroup):
             # create the coroutines and run them concurrently with timing
             sub_coro = self._repo.query_database(
                 database_id=source_database_id,
+                database=source_db_name,
                 filter={
                     "property": "Ancestors",
                     "relation": {"contains": page.id},
@@ -51,25 +60,34 @@ class ServicePage(ServicePageInterface):
             )
             journ_coro = self._repo.query_database(
                 database_id=journal_database_id,
+                database=journal_db_name,
                 filter={
-                    "property": journal_db_relation,
+                    "property": source_db_name.value,
                     "relation": {"contains": page.id},
                 },
             )
 
             sub_pages_tasks, journal_pages_tasks = await asyncio.gather(
-                _timed(sub_coro, page, "query_database:sub_pages"),
-                _timed(journ_coro, page, "query_database:journal_pages")
+                _timed(
+                    sub_coro,
+                    page, 
+                    "query_database:sub_pages"
+                    ),
+                _timed(
+                    journ_coro, 
+                    page, 
+                    "query_database:journal_pages"
+                    ),
             )
 
-            page.relations = ClientPageRelations(Descendants=None, Ancestors=None, Journals=None)
+            page.relations = ClientRelation(Descendants=None, Ancestors=None, Journals=None)
             if journal_pages_tasks:
                 page.relations.Journals = journal_pages_tasks
 
             if sub_pages_tasks:
                 page.relations.Descendants = sub_pages_tasks
                 for sub_page in page.relations.Descendants:
-                    tg.create_task(process(sub_page, level + 1, tg))
+                    tg.create_task(process(sub_page, source_database_id, source_db_name, journal_database_id, journal_db_name, level + 1, tg))
 
             if level == 1:
                 pprint.pprint(page)
@@ -77,7 +95,17 @@ class ServicePage(ServicePageInterface):
                 
                 
         async with asyncio.TaskGroup() as tg:
-            tg.create_task(process(root_page, level, tg))
+            tg.create_task(
+                process(
+                    root_page, 
+                    source_database_id, 
+                    source_db_name, 
+                    journal_database_id,
+                    journal_db_name, 
+                    level, 
+                    tg
+                    )
+                )
             
         return collected
   

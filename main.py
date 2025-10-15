@@ -1,4 +1,5 @@
 import src.service.service_page_notion as spn
+from src.constants.literal_definitions import DatabaseName, JournalName, SourceParentPageId
 import src.repo.repo_page_notion as rpn
 from src.models.client_models import ClientPage
 from typing import List
@@ -15,14 +16,25 @@ class Runner:
         repo_notion = rpn.NotionClientAPI(os.getenv("NOTION_TOKEN"))
         self.service = spn.ServicePage(repo=repo_notion)
 
-    async def run(self, parent_page_id: str, source_database_id: str, journal_database_id: str, journal_db_relation: str) -> List[ClientPage]:
-        root_page = await self.service.get_page(parent_page_id)
-        _ = await self.service.build_page_hierarchy(root_page, source_database_id, journal_database_id, journal_db_relation)
-    
+    async def run(self, 
+                  parent_page_id: str, 
+                  source_database_id: str, 
+                  source_database_name: DatabaseName, 
+                  journal_database_id: str,
+                  journal_db_name: JournalName.JOURNAL) -> List[ClientPage]:
+        root_page = await self.service.get_page(parent_page_id, source_database_name)
+        _ = await self.service.build_page_hierarchy(root_page, source_database_id, source_database_name, journal_database_id, journal_db_name)
 
 async def main():
     runner = Runner()
-    await runner.run(parent_page_id=os.getenv("SOURCE_PARENT_PAGE"), source_database_id=os.getenv("LIFE_STYLE_DB"), journal_database_id=os.getenv("JOURNAL_DB"), journal_db_relation=os.getenv("JOURNAL_DB_RELATION"))
+    source_database_name = DatabaseName.LIFE_STYLE
+    await runner.run(
+        parent_page_id=os.getenv(SourceParentPageId.SOURCE_PARENT_PAGE.name),
+        source_database_id=os.getenv(source_database_name.name), 
+        source_database_name=source_database_name,
+        journal_database_id=os.getenv(JournalName.JOURNAL.name), 
+        journal_db_name=JournalName.JOURNAL
+        )
 
 if __name__ == "__main__":
     start_time = perf_counter()

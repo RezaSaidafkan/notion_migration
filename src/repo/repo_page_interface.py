@@ -1,18 +1,19 @@
-from src.models.client_models import ClientPage, ClientPageProperties, ClientPageRelations
-from typing import List, Dict, Any
+from constants.literal_definitions import DatabaseName, JournalName
+from src.models.client_models import ClientPage, ClientPageProperties, ClientRelation
+from typing import List, Dict, Any, Union
 from abc import ABC, abstractmethod
 
 class RepoPageInterface(ABC):
     @abstractmethod
-    async def get_page(self, page_id: str) -> ClientPage:
+    async def get_page(self, page_id: str, database: DatabaseName) -> ClientPage:
         pass
 
     @abstractmethod
-    async def query_database(self, database_id: str, filter: Dict[str, Any] = None) -> List[ClientPage]:
+    async def query_database(self, database_id: str, database: Union[DatabaseName, JournalName], filter: Dict[str, Any] = None) -> List[ClientPage]:
         pass
 
     @abstractmethod
-    async def create_page(self, parent: ClientPage, properties: ClientPageProperties, relations: ClientPageRelations = None) -> ClientPage:
+    async def create_page(self, parent: ClientPage, properties: ClientPageProperties, relations: ClientRelation = None) -> ClientPage:
         pass
 
     @abstractmethod # TODO: see if you can fix partial pass for dataclass properties
@@ -20,5 +21,5 @@ class RepoPageInterface(ABC):
         pass
 
     @abstractmethod
-    async def append_page_relations(self, page: ClientPage, relations: ClientPageRelations) -> None:
+    async def append_page_relations(self, page: ClientPage, relations: ClientRelation) -> None:
         pass

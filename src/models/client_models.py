@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from src.constants.literal_definitions import DatabaseName
 from typing import List, Optional
 from dataclasses_json import DataClassJsonMixin
 from models.api_models import DateProperty, PeopleProperty, RichTextProperty, SelectProperty, StatusProperty, Icon, TitleProperty
@@ -23,8 +24,7 @@ class ClientPageProperties(DataClassJsonMixin):
         return f"{title} | {typ} | {status} | {timeline}"
 
 @dataclass
-class ClientPageRelations(DataClassJsonMixin):
-    Journals: Optional[List["JournalPage"]]
+class BaseHierarchyProperty(DataClassJsonMixin):
     Ancestors: Optional[List["ClientPage"]]
     Descendants: Optional[List["ClientPage"]]
     
@@ -34,22 +34,41 @@ class ClientPageRelations(DataClassJsonMixin):
             for page in self.Descendants:
                 page_text = repr(page)
                 desc_parts.append(indent(page_text, '\t'))
+
+        return '\n'.join(desc_parts)
+
+@dataclass
+class ClientRelation(BaseHierarchyProperty):
+    Journals: Optional[List["ClientPage"]]
+    
+    def __repr__(self):
         journ_parts = []
         if self.Journals:
             for page in self.Journals:
                 page_text = repr(page)
                 journ_parts.append(indent(page_text, '\t'))
 
-        desc = '\n'.join(desc_parts)
         journ = '\n'.join(journ_parts)
-        return f"\n\tDescendants:\n{desc}\n\tJournals:\n{journ}"
+        return super().__repr__() + (f"\n\tJournals:\n{journ}" if journ else "")
+
+@dataclass
+class JournalRelation(BaseHierarchyProperty):
+    database = DatabaseName
     
+    def __repr__(self):
+        rel_parts = []
+        for page in self.database:
+            page_text = repr(page)
+            rel_parts.append(indent(page_text, '\t'))
+
+        rels = '\n'.join(rel_parts)
+        return super().__repr__() + (f"\n\tRelations:\n{rels}" if rels else "")
 
 @dataclass
 class ClientPage(DataClassJsonMixin):
     id: str
     properties: ClientPageProperties
-    relations: Optional[ClientPageRelations] = None
+    relations: Optional[ClientRelation] = None
     icon: Optional[Icon] = None
     
     def __repr__(self):
@@ -60,17 +79,20 @@ class ClientPage(DataClassJsonMixin):
         rels_indented = indent(rels, '\t')
         return f"{icon} {self.properties}\n\tRelations:\n\t{rels_indented}"
     
-
 @dataclass
-class JournalPage(DataClassJsonMixin):
+class ClientJournalPage(DataClassJsonMixin):
     id: str
-    properties: "JournalPageProperties"
+    properties: ClientPageProperties
+    relations: Optional[JournalRelation] = None
     icon: Optional[Icon] = None
     
     def __repr__(self):
         icon = self.icon.__repr__() if self.icon else ''
-        return f"{icon} {self.properties}"
-    
+        rels = self.relations.__repr__() if self.relations else ''
+
+        # ensure every line in rels is indented one more tab for the Relations: block
+        rels_indented = indent(rels, '\t')
+        return f"{icon} {self.properties}\n\tRelations:\n\t{rels_indented}"
 
 @dataclass
 class JournalPageProperties(DataClassJsonMixin):
