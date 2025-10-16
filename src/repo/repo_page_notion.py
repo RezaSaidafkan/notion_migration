@@ -18,21 +18,24 @@ class NotionClientAPI(RepoPageInterface):
         results = []
         has_more = True
         cursor = None
-        print("database_id", database_id, "database", database, "filter", filter)
-        while has_more:
-            resp = await self.notion.databases.query(
-                **{
-                    "database_id": database_id,
-                    "start_cursor": cursor,
-                    "filter": filter or {},
-                    "page_size": 100,
-                }
-            )
-            results.extend([ApiPage.from_dict(result) for result in resp["results"]])
-            has_more = resp["has_more"]
-            cursor = resp.get("next_cursor")
-        converted_results = [domain_convert_client_page(database)(apiPage) for apiPage in results]
-        return converted_results
+        try:
+            while has_more:
+                resp = await self.notion.databases.query(
+                    **{
+                        "database_id": database_id,
+                        "start_cursor": cursor,
+                        "filter": filter or {},
+                        "page_size": 100,
+                    }
+                )
+                results.extend([ApiPage.from_dict(result) for result in resp["results"]])
+                has_more = resp["has_more"]
+                cursor = resp.get("next_cursor")
+            converted_results = [domain_convert_client_page(database)(apiPage) for apiPage in results]
+            return converted_results
+        except Exception as e:
+            print(f"Error querying database {database_id}: {e}")
+            return []
 
     async def create_page(self, database_id: str, pageProperties: ClientPageProperties, pageRelations: ClientRelation) -> ClientPage:
         raise NotImplementedError("Creating pages is not implemented in NotionClientAPI")

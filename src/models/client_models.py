@@ -54,12 +54,23 @@ class ClientRelation(BaseHierarchyProperty):
 @dataclass
 class JournalRelation(BaseHierarchyProperty):
     database = DatabaseName
+    Backtrack: Optional[List["ClientJournalPage"]] = None  # Ancestors
+    Forwardtrack: Optional[List["ClientJournalPage"]] = None  # Descendants
+    
     
     def __repr__(self):
         rel_parts = []
         for page in self.database:
             page_text = repr(page)
             rel_parts.append(indent(page_text, '\t'))
+        if self.Backtrack:
+            for page in self.Backtrack:
+                page_text = repr(page)
+                rel_parts.append(indent(page_text, '\t'))
+        if self.Forwardtrack:
+            for page in self.Forwardtrack:
+                page_text = repr(page)
+                rel_parts.append(indent(page_text, '\t'))
 
         rels = '\n'.join(rel_parts)
         return super().__repr__() + (f"\n\tRelations:\n{rels}" if rels else "")
