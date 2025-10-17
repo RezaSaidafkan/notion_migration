@@ -3,17 +3,15 @@ from src.constants.literal_definitions import DatabaseName, JournalName, SourceP
 import src.repo.repo_page_notion as rpn
 from src.models.client_models import ClientPage
 from typing import List
-import dotenv
-import os
 import asyncio
 from time import perf_counter
+from src.config.load_config import GLOBAL_CONFIG
 
 
-dotenv.load_dotenv()
 
 class Runner:
     def __init__(self):
-        repo_notion = rpn.NotionClientAPI(os.getenv("NOTION_TOKEN"))
+        repo_notion = rpn.NotionClientAPI(GLOBAL_CONFIG.NOTION_API_KEY)
         self.service = spn.ServicePage(repo=repo_notion)
 
     async def run(self, 
@@ -29,10 +27,10 @@ async def main():
     runner = Runner()
     source_database_name = DatabaseName.LIFE_STYLE
     await runner.run(
-        parent_page_id=os.getenv(SourceParentPageId.SOURCE_PARENT_PAGE.name),
-        source_database_id=os.getenv(source_database_name.name), 
+        parent_page_id=GLOBAL_CONFIG.SOURCE_PARENT_PAGE,
+        source_database_id=GLOBAL_CONFIG.SOURCE_DATABASE_ID,
         source_database_name=source_database_name,
-        journal_database_id=os.getenv(JournalName.JOURNAL.name), 
+        journal_database_id=GLOBAL_CONFIG.TARGET_DATABASE_ID,
         journal_db_name=JournalName.JOURNAL
         )
 

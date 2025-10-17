@@ -1,16 +1,16 @@
 import enum
 from typing import AsyncGenerator, List, Literal, Union
-from src.domain_conversion.definitions import ClientJournalPage as ClientJournalPageEnum
+from src.domain_conversion.definitions import ClientJournalRelations, ClientSourceRelations
 import pprint
 from collections.abc import Coroutine
 from src.service.service_page_interface import ServicePageInterface
-from src.repo.repo_page_interface import RepoPageInterface
+from src.repo.repo_page_interface import RepoPageInterface, PaginationResult
 from src.models.client_models import ClientJournalPage, ClientPage, ClientRelation, JournalRelation
 from src.constants.literal_definitions import DatabaseName, JournalName
 import asyncio
 from asyncio import Task
 from time import perf_counter
-
+from src.config.load_config import GLOBAL_CONFIG
 
 class ServicePage(ServicePageInterface):
     """
@@ -27,6 +27,24 @@ class ServicePage(ServicePageInterface):
     async def get_page(self, page_id: str, database: Union[DatabaseName, JournalName]) -> ClientPage:
         return await self._repo.get_page(page_id, database)
 
+    async def query_database(self, database_id: str, database: Union[DatabaseName, JournalName], filter: dict, tg: asyncio.TaskGroup, cursor=None) -> List[ClientPage]:
+        exhausted = False
+        pages: List[ClientPage] = []
+        pagination: PaginationResult
+        while not exhausted:
+            task = tg.create_task(
+                self._repo.query_database(database_id, 
+                                          database, 
+                                          page_size=GLOBAL_CONFIG.PAGE_SIZE,
+                                          filter=filter, 
+                                          cursor=cursor)
+            )
+            pagination = await task
+            pages.extend(pagination.results)
+            cursor = pagination.next_cursor
+            exhausted = not pagination.has_more
+        return pages
+
     async def build_page_hierarchy(self, root_page: ClientPage, source_database_id: str, source_db_name: DatabaseName, journal_database_id: str, journal_db_name: JournalName, level: int = 0) -> List[ClientPage]:
         """
         Return pages whose 'Ancestor' relation contains the given parent.
@@ -38,26 +56,28 @@ class ServicePage(ServicePageInterface):
             t0 = perf_counter()
             res = await coro
             t1 = perf_counter()
-            # print(f"[TIMING] {label} page={page.id} took={t1-t0:.3f}s")
+            print(f"[TIMING] {label} page={page.id} took={t1-t0:.3f}s")
             return res
         
         collected: list[ClientPage] = []
 
-        async def process_journal_recursive(page: ClientJournalPage,
-                                            journal_database_id: str, 
-                                            journal_db_name: JournalName,
-                                            journal_relation: ClientJournalPageEnum,
-                                            tg: asyncio.TaskGroup,
-                                            semaphore: asyncio.Semaphore
-                                            ):
+        async def process_journal_recursive(
+            page: ClientJournalPage,
+            journal_database_id: str, 
+            journal_db_name: JournalName,
+            journal_relation: ClientJournalRelations,
+            tg: asyncio.TaskGroup,
+            semaphore: asyncio.Semaphore
+            ):
             async with semaphore:
-                sub_journal_pages = await self._repo.query_database(
+                sub_journal_pages = await self.query_database(
                     database_id=journal_database_id,
                     database=journal_db_name,
                     filter={
                         "property": journal_relation.ANCESTORS.value,
                         "relation": {"contains": page.id},
                     },
+                    tg=tg,
                 )
 
                 if sub_journal_pages:
@@ -65,34 +85,42 @@ class ServicePage(ServicePageInterface):
                     for journ_page in sub_journal_pages:
                         tg.create_task(
                             _timed(
-                                process_journal_recursive(journ_page, journal_database_id, journal_db_name, journal_relation, tg, semaphore),
+                                process_journal_recursive(
+                                    journ_page,
+                                    journal_database_id,
+                                    journal_db_name, 
+                                    journal_relation, 
+                                    tg,
+                                    semaphore),
                                 journ_page,
                                 "process_journal_recursive"
                             )
                         )
 
-        async def process_source_recursive(page: ClientPage, 
-                          source_database_id: str, 
-                          source_db_name: DatabaseName, 
-                          journal_database_id: str,
-                          journal_db_name: JournalName, 
-                          level: int,
-                          tg: asyncio.TaskGroup,
-                          semaphore: asyncio.Semaphore
-                          ):
+        async def process_source_recursive(
+            page: ClientPage, 
+            source_database_id: str, 
+            source_db_name: DatabaseName, 
+            journal_database_id: str,
+            journal_db_name: JournalName, 
+            level: int,
+            tg: asyncio.TaskGroup,
+            semaphore: asyncio.Semaphore
+            ):
             # create the coroutines and run them concurrently with timing
             
             async with semaphore:
                 sub_pages_tasks = tg.create_task(
                     _timed(
-                        self._repo.query_database(
+                        self.query_database(
                             database_id=source_database_id,
                             database=source_db_name,
                             filter={
-                                "property": "Ancestors",
+                                "property": ClientSourceRelations.ANCESTORS.value,
                                 "relation": {"contains": page.id},
                                 },
-                            ),
+                            tg=tg,
+                        ),
                             page,
                             "query_database:sub_pages"
                         )
@@ -100,13 +128,14 @@ class ServicePage(ServicePageInterface):
 
                 journal_roots_tasks = tg.create_task(
                     _timed(
-                        self._repo.query_database(
+                        self.query_database(
                             database_id=journal_database_id,
                             database=journal_db_name,
                             filter={
                                 "property": source_db_name.value,
                                 "relation": {"contains": page.id},
-                            }
+                            },
+                            tg=tg,
                         ),
                         page,
                         "query_database:journal_roots"
@@ -122,7 +151,12 @@ class ServicePage(ServicePageInterface):
                         tg.create_task(
                             _timed(
                                 process_journal_recursive(
-                                    journ_page, journal_database_id, journal_db_name, ClientJournalPageEnum, tg, semaphore
+                                    journ_page, 
+                                    journal_database_id,
+                                    journal_db_name,
+                                    ClientJournalRelations,
+                                    tg,
+                                    semaphore
                                 ),
                                 journ_page,
                                 "process_journal_recursive"
@@ -138,7 +172,12 @@ class ServicePage(ServicePageInterface):
                         tg.create_task(
                             _timed(
                                 process_journal_recursive(
-                                    journ_page, journal_database_id, journal_db_name, ClientJournalPageEnum, tg, semaphore
+                                    journ_page,
+                                    journal_database_id,
+                                    journal_db_name,
+                                    ClientJournalRelations,
+                                    tg,
+                                    semaphore
                                 ),
                                 journ_page,
                                 "process_journal_recursive"
@@ -151,7 +190,14 @@ class ServicePage(ServicePageInterface):
                         tg.create_task(
                             _timed(
                                 process_source_recursive(
-                                    sub_page, source_database_id, source_db_name, journal_database_id, journal_db_name, level + 1, tg, semaphore
+                                    sub_page,
+                                    source_database_id,
+                                    source_db_name,
+                                    journal_database_id,
+                                    journal_db_name,
+                                    level + 1,
+                                    tg, 
+                                    semaphore
                                 ),
                                 sub_page,
                                 "process_source_recursive"

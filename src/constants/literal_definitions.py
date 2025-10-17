@@ -15,3 +15,5 @@ class JournalName(enum.Enum):
 
 class SourceParentPageId(enum.Enum):
     SOURCE_PARENT_PAGE = "SOURCE_PARENT_PAGE"
+    
+PAGINATION_SIZE = 20

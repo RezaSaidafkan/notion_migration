@@ -1,7 +1,12 @@
 import enum
 
-class ClientJournalPage(enum.Enum):
+class ClientJournalRelations(enum.Enum):
     ANCESTORS = "Ancestors"
     DESCENDANTS = "Descendants"
     BACKTRACK = "Backtrack"
     FORWARDTRACK = "Forwardtrack"
+
+class ClientSourceRelations(enum.Enum):
+    ANCESTORS = "Ancestors"
+    DESCENDANTS = "Descendants"
+    

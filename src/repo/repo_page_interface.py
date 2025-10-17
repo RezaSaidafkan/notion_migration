@@ -1,7 +1,16 @@
+from dataclasses import dataclass
 from constants.literal_definitions import DatabaseName, JournalName
 from src.models.client_models import ClientPage, ClientPageProperties, ClientRelation
 from typing import List, Dict, Any, Union
 from abc import ABC, abstractmethod
+
+
+@dataclass
+class PaginationResult:
+    results: List[ClientPage]
+    has_more: bool
+    next_cursor: Union[str, None]
+
 
 class RepoPageInterface(ABC):
     @abstractmethod

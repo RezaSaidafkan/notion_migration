@@ -1,8 +1,9 @@
+import pprint
 from typing import List, Dict, Any, Union, Callable
 from src.models.client_models import ClientJournalPage, ClientPage, ClientPageProperties, ClientRelation, JournalPageProperties
 from src.models.api_models import ApiPage
 from notion_client import AsyncClient as Client
-from src.repo.repo_page_interface import RepoPageInterface
+from src.repo.repo_page_interface import PaginationResult, RepoPageInterface
 from src.constants.literal_definitions import DatabaseName, JournalName
 
 class NotionClientAPI(RepoPageInterface):
@@ -14,10 +15,9 @@ class NotionClientAPI(RepoPageInterface):
         response = await self.notion.pages.retrieve(page_id=page_id)
         return domain_convert_client_page(database)(ApiPage.from_dict(response))
 
-    async def query_database(self, database_id: str, database: Union[DatabaseName, JournalName], filter: Dict[str, Any] = None) -> List[ClientPage]:
+    async def query_database(self, database_id: str, database: Union[DatabaseName, JournalName], page_size: int, cursor: str = None, filter: Dict[str, Any] = None) -> PaginationResult:
         results = []
         has_more = True
-        cursor = None
         try:
             while has_more:
                 resp = await self.notion.databases.query(
@@ -25,17 +25,18 @@ class NotionClientAPI(RepoPageInterface):
                         "database_id": database_id,
                         "start_cursor": cursor,
                         "filter": filter or {},
-                        "page_size": 100,
+                        "page_size": page_size,
                     }
                 )
                 results.extend([ApiPage.from_dict(result) for result in resp["results"]])
                 has_more = resp["has_more"]
                 cursor = resp.get("next_cursor")
+                print(f"Fetched {len(results)} pages so far...")
             converted_results = [domain_convert_client_page(database)(apiPage) for apiPage in results]
-            return converted_results
+            return PaginationResult(results=converted_results, has_more=has_more, next_cursor=cursor)
         except Exception as e:
             print(f"Error querying database {database_id}: {e}")
-            return []
+            return PaginationResult(results=[], has_more=False, next_cursor=None)
 
     async def create_page(self, database_id: str, pageProperties: ClientPageProperties, pageRelations: ClientRelation) -> ClientPage:
         raise NotImplementedError("Creating pages is not implemented in NotionClientAPI")

@@ -1,11 +1,17 @@
 
-from typing import List
+from typing import List, Union
+
+from constants.literal_definitions import DatabaseName, JournalName
 from src.models.client_models import ClientPage
 from abc import ABC, abstractmethod
 
 class ServicePageInterface(ABC):
     @abstractmethod
     def get_page(self, page_id: str) -> ClientPage:
+        pass
+    
+    @abstractmethod
+    def query_database(self, database_id: str, database: Union[DatabaseName, JournalName], filter: dict) -> List[ClientPage]:
         pass
     
     @abstractmethod
