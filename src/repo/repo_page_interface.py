@@ -18,7 +18,7 @@ class RepoPageInterface(ABC):
         pass
 
     @abstractmethod
-    async def query_database(self, database_id: str, database: Union[DatabaseName, JournalName], filter: Dict[str, Any] = None) -> List[ClientPage]:
+    async def query_database(self, database_id: str, database: Union[DatabaseName, JournalName], filter: Dict[str, Any] = None, cursor: Union[str, None] = None) -> List[ClientPage]:
         pass
 
     @abstractmethod

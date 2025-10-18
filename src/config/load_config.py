@@ -12,6 +12,8 @@ class Config:
     SOURCE_DATABASE_ID: str
     TARGET_DATABASE_ID: str
     PAGE_SIZE: int
+    SEMAPHORE_LIMIT: int
+    DEBUG: bool
     
 def get_config() -> Config:
     return Config(
@@ -20,6 +22,8 @@ def get_config() -> Config:
         SOURCE_DATABASE_ID=os.getenv("SOURCE_DATABASE_ID"),
         TARGET_DATABASE_ID=os.getenv("TARGET_DATABASE_ID"),
         PAGE_SIZE=int(os.getenv("PAGE_SIZE", PAGINATION_SIZE)),
+        SEMAPHORE_LIMIT=int(os.getenv("SEMAPHORE_LIMIT", 10)),
+        DEBUG=os.getenv("DEBUG", "False").lower() in ("true", "1")
     )
 
 class GlobalConfig:

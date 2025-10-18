@@ -5,6 +5,7 @@ from src.models.api_models import ApiPage
 from notion_client import AsyncClient as Client
 from src.repo.repo_page_interface import PaginationResult, RepoPageInterface
 from src.constants.literal_definitions import DatabaseName, JournalName
+from src.config.load_config import GLOBAL_CONFIG
 
 class NotionClientAPI(RepoPageInterface):
     def __init__(self, notion_token: str):
@@ -15,7 +16,7 @@ class NotionClientAPI(RepoPageInterface):
         response = await self.notion.pages.retrieve(page_id=page_id)
         return domain_convert_client_page(database)(ApiPage.from_dict(response))
 
-    async def query_database(self, database_id: str, database: Union[DatabaseName, JournalName], page_size: int, cursor: str = None, filter: Dict[str, Any] = None) -> PaginationResult:
+    async def query_database(self, database_id: str, database: Union[DatabaseName, JournalName], page_size: int, cursor: str = None, filter: Dict[str, Any] = None, debug: bool = GLOBAL_CONFIG.DEBUG) -> PaginationResult:
         results = []
         has_more = True
         try:
@@ -31,7 +32,8 @@ class NotionClientAPI(RepoPageInterface):
                 results.extend([ApiPage.from_dict(result) for result in resp["results"]])
                 has_more = resp["has_more"]
                 cursor = resp.get("next_cursor")
-                print(f"Fetched {len(results)} pages so far...")
+                if debug:
+                    print(f"Fetched {len(results)} pages so far...")
             converted_results = [domain_convert_client_page(database)(apiPage) for apiPage in results]
             return PaginationResult(results=converted_results, has_more=has_more, next_cursor=cursor)
         except Exception as e:

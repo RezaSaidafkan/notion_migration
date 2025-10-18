@@ -1,6 +1,9 @@
 .env
 .env.*
 
+# Dev environment files
+.dev
+
 # Byte-compiled / cache
 *.pyc
 **/*.pyc

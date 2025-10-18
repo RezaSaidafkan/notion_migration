@@ -27,19 +27,19 @@ class ServicePage(ServicePageInterface):
     async def get_page(self, page_id: str, database: Union[DatabaseName, JournalName]) -> ClientPage:
         return await self._repo.get_page(page_id, database)
 
-    async def query_database(self, database_id: str, database: Union[DatabaseName, JournalName], filter: dict, tg: asyncio.TaskGroup, cursor=None) -> List[ClientPage]:
+    async def query_database(self, database_id: str, database: Union[DatabaseName, JournalName], filter: dict) -> List[ClientPage]:
         exhausted = False
+        cursor = None
         pages: List[ClientPage] = []
         pagination: PaginationResult
         while not exhausted:
-            task = tg.create_task(
-                self._repo.query_database(database_id, 
-                                          database, 
-                                          page_size=GLOBAL_CONFIG.PAGE_SIZE,
-                                          filter=filter, 
-                                          cursor=cursor)
-            )
-            pagination = await task
+            pagination = await self._repo.query_database(
+                database_id, 
+                database, 
+                page_size=GLOBAL_CONFIG.PAGE_SIZE,
+                filter=filter, 
+                cursor=cursor
+                )
             pages.extend(pagination.results)
             cursor = pagination.next_cursor
             exhausted = not pagination.has_more
@@ -52,14 +52,21 @@ class ServicePage(ServicePageInterface):
         This method contains the schema knowledge ('Ancestor' relation) and
         delegates to the repository's generic `query_database` method.
         """
-        async def _timed(coro, page: ClientPage, label: str):
-            t0 = perf_counter()
-            res = await coro
-            t1 = perf_counter()
-            print(f"[TIMING] {label} page={page.id} took={t1-t0:.3f}s")
+        async def _timed(coro, page: ClientPage, label: str, debug: bool = GLOBAL_CONFIG.DEBUG) -> any:
+            if debug:
+                t0 = perf_counter()
+                res = await coro
+                t1 = perf_counter()
+                print(f"[TIMING] {label} page={page.id.replace('-', ''), page.properties.Title.title} took={t1-t0:.3f}s")
+            else:
+                res = await coro
             return res
         
         collected: list[ClientPage] = []
+        
+        async def _limited(semaphore: asyncio.Semaphore, coro):
+            async with semaphore:
+                return await coro
 
         async def process_journal_recursive(
             page: ClientJournalPage,
@@ -69,22 +76,22 @@ class ServicePage(ServicePageInterface):
             tg: asyncio.TaskGroup,
             semaphore: asyncio.Semaphore
             ):
-            async with semaphore:
-                sub_journal_pages = await self.query_database(
-                    database_id=journal_database_id,
-                    database=journal_db_name,
-                    filter={
-                        "property": journal_relation.ANCESTORS.value,
-                        "relation": {"contains": page.id},
-                    },
-                    tg=tg,
-                )
+            sub_journal_pages = await self.query_database(
+                database_id=journal_database_id,
+                database=journal_db_name,
+                filter={
+                    "property": journal_relation.ANCESTORS.value,
+                    "relation": {"contains": page.id},
+                },
+            )
 
-                if sub_journal_pages:
-                    page.relations = JournalRelation(Descendants=sub_journal_pages, Ancestors=page)
-                    for journ_page in sub_journal_pages:
-                        tg.create_task(
-                            _timed(
+            if sub_journal_pages:
+                page.relations = JournalRelation(Descendants=sub_journal_pages, Ancestors=page)
+                for journ_page in sub_journal_pages:
+                    tg.create_task(
+                        _timed(
+                            _limited(
+                                semaphore,
                                 process_journal_recursive(
                                     journ_page,
                                     journal_database_id,
@@ -92,10 +99,11 @@ class ServicePage(ServicePageInterface):
                                     journal_relation, 
                                     tg,
                                     semaphore),
-                                journ_page,
-                                "process_journal_recursive"
-                            )
+                            ),
+                            journ_page,
+                            "process_journal_recursive"
                         )
+                    )
 
         async def process_source_recursive(
             page: ClientPage, 
@@ -109,68 +117,46 @@ class ServicePage(ServicePageInterface):
             ):
             # create the coroutines and run them concurrently with timing
             
-            async with semaphore:
-                sub_pages_tasks = tg.create_task(
-                    _timed(
-                        self.query_database(
-                            database_id=source_database_id,
-                            database=source_db_name,
-                            filter={
-                                "property": ClientSourceRelations.ANCESTORS.value,
-                                "relation": {"contains": page.id},
-                                },
-                            tg=tg,
-                        ),
-                            page,
-                            "query_database:sub_pages"
-                        )
-                )
-
-                journal_roots_tasks = tg.create_task(
-                    _timed(
-                        self.query_database(
-                            database_id=journal_database_id,
-                            database=journal_db_name,
-                            filter={
-                                "property": source_db_name.value,
-                                "relation": {"contains": page.id},
+            sub_pages_tasks = tg.create_task(
+                _timed(
+                    self.query_database(
+                        database_id=source_database_id,
+                        database=source_db_name,
+                        filter={
+                            "property": ClientSourceRelations.ANCESTORS.value,
+                            "relation": {"contains": page.id},
                             },
-                            tg=tg,
-                        ),
-                        page,
-                        "query_database:journal_roots"
-                    )
+                    ),
+                    page,
+                    "query_database:sub_pages"
+                    ),
                 )
 
-                sub_pages, journal_pages = await asyncio.gather(sub_pages_tasks, journal_roots_tasks)
+            journal_roots_tasks = tg.create_task(
+                _timed(
+                    self.query_database(
+                        database_id=journal_database_id,
+                        database=journal_db_name,
+                        filter={
+                            "property": source_db_name.value,
+                            "relation": {"contains": page.id},
+                        },
+                    ),
+                    page,
+                    "query_database:journal_roots"
+                    ),
+                )
 
-                page.relations = ClientRelation(Descendants=None, Ancestors=None, Journals=None)
-                if journal_pages:
-                    page.relations.Journals = journal_pages
-                    for journ_page in journal_pages:
-                        tg.create_task(
-                            _timed(
-                                process_journal_recursive(
-                                    journ_page, 
-                                    journal_database_id,
-                                    journal_db_name,
-                                    ClientJournalRelations,
-                                    tg,
-                                    semaphore
-                                ),
-                                journ_page,
-                                "process_journal_recursive"
-                            )
-                    )
+            sub_pages, journal_pages = await asyncio.gather(sub_pages_tasks, journal_roots_tasks)
 
-                sub_pages, journal_pages = await asyncio.gather(sub_pages_tasks, journal_roots_tasks)
-
-                page.relations = ClientRelation(Descendants=None, Ancestors=None, Journals=None)
-                if journal_pages:
-                    page.relations.Journals = journal_pages
-                    for journ_page in journal_pages:
-                        tg.create_task(
-                            _timed(
+            page.relations = ClientRelation(Descendants=None, Ancestors=None, Journals=None)
+            if journal_pages:
+                page.relations.Journals = journal_pages
+                for journ_page in journal_pages:
+                    tg.create_task(
+                        _timed(
+                            _limited(
+                                semaphore,
                                 process_journal_recursive(
                                     journ_page,
                                     journal_database_id,
@@ -179,16 +165,19 @@ class ServicePage(ServicePageInterface):
                                     tg,
                                     semaphore
                                 ),
-                                journ_page,
-                                "process_journal_recursive"
-                            )
+                            ),
+                            journ_page,
+                            "process_journal_recursive"
                         )
+                    )
 
-                if sub_pages:
-                    page.relations.Descendants = sub_pages
-                    for sub_page in page.relations.Descendants:
-                        tg.create_task(
-                            _timed(
+            if sub_pages:
+                page.relations.Descendants = sub_pages
+                for sub_page in page.relations.Descendants:
+                    tg.create_task(
+                        _timed(
+                            _limited(
+                                semaphore,
                                 process_source_recursive(
                                     sub_page,
                                     source_database_id,
@@ -199,17 +188,18 @@ class ServicePage(ServicePageInterface):
                                     tg, 
                                     semaphore
                                 ),
-                                sub_page,
-                                "process_source_recursive"
-                            )
+                            ),
+                            sub_page,
+                            "process_source_recursive"
                         )
+                    )
 
             if level == 1:
                 pprint.pprint(page)
                 collected.append(page)
 
 
-        sem = asyncio.Semaphore(10)
+        semaphore = asyncio.Semaphore(GLOBAL_CONFIG.SEMAPHORE_LIMIT)
         async with asyncio.TaskGroup() as tg:
             tg.create_task(
                 process_source_recursive(
@@ -220,7 +210,7 @@ class ServicePage(ServicePageInterface):
                     journal_db_name, 
                     level, 
                     tg,
-                    semaphore=sem
+                    semaphore,
                     )
                 )
             
