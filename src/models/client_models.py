@@ -1,12 +1,13 @@
 from dataclasses import dataclass
-from src.constants.literal_definitions import DatabaseName
+from src.constants.literal_definitions import JournalRelations
 from typing import List, Optional
 from dataclasses_json import DataClassJsonMixin
-from models.api_models import DateProperty, PeopleProperty, RichTextProperty, SelectProperty, StatusProperty, Icon, TitleProperty
+from models.api_models import DateProperty, PeopleProperty, RichTextProperty, SelectProperty, StatusProperty, IconProperty, TitleProperty
+import pprint
 
 
 @dataclass
-class ClientPageProperties(DataClassJsonMixin):
+class PageProperties(DataClassJsonMixin):
     Type: Optional[SelectProperty]
     Title: Optional[TitleProperty]
     Assignee: Optional[PeopleProperty]
@@ -21,25 +22,44 @@ class ClientPageProperties(DataClassJsonMixin):
         typ = self.Type.__repr__() if self.Type else "<Type: None>"
         status = self.Status.__repr__() if self.Status else "<Status: None>"
         timeline = self.Timeline.__repr__() if self.Timeline else "<Date: None>"
-        return f"{title} | {typ} | {status} | {timeline}"
+        # return f"{title} | {typ} | {status} | {timeline}"
+        return f"{title}"
+
+
+@dataclass
+class JournalPageProperties(DataClassJsonMixin):
+    Title: Optional[TitleProperty]
+    Type: Optional[SelectProperty]
+    Status: Optional[StatusProperty]
+    Timeline: Optional[DateProperty]
+    Description: Optional[RichTextProperty]
+    
+    def __repr__(self):        
+        title = self.Title.__repr__() if self.Title else "<Title: None>"
+        typ = self.Type.__repr__() if self.Type else "<Type: None>"
+        status = self.Status.__repr__() if self.Status else "<Status: None>"
+        timeline = self.Timeline.__repr__() if self.Timeline else "<Date: None>"
+        # return f"{title} | {typ} | {status} | {timeline}"
+        return f"{title}"
 
 @dataclass
 class BaseHierarchyProperty(DataClassJsonMixin):
-    Ancestors: Optional[List["ClientPage"]]
-    Descendants: Optional[List["ClientPage"]]
+    Ancestors: Optional[List["CommonPage"]]
+    Descendants: Optional[List["CommonPage"]]
     
     def __repr__(self):
-        desc_parts = []
+        rel_parts = []
         if self.Descendants:
             for page in self.Descendants:
                 page_text = repr(page)
-                desc_parts.append(indent(page_text, '\t'))
+                rel_parts.append(indent(page_text, '\t'))
 
-        return '\n'.join(desc_parts)
+        
+        return format_relation_heirarchy(super().__repr__(), '\n'.join(rel_parts), "Base.Descendants")
 
 @dataclass
-class ClientRelation(BaseHierarchyProperty):
-    Journals: Optional[List["ClientPage"]]
+class PageRelation(BaseHierarchyProperty):
+    Journals: Optional[List["CommonPage"]]
     
     def __repr__(self):
         journ_parts = []
@@ -48,21 +68,20 @@ class ClientRelation(BaseHierarchyProperty):
                 page_text = repr(page)
                 journ_parts.append(indent(page_text, '\t'))
 
-        journ = '\n'.join(journ_parts)
-        return super().__repr__() + (f"\n\tJournals:\n{journ}" if journ else "")
+            journ = '\n'.join(journ_parts)
+        return format_relation_heirarchy(super().__repr__(), journ, "Page.Journals")
 
 @dataclass
 class JournalRelation(BaseHierarchyProperty):
-    database = DatabaseName
-    Backtrack: Optional[List["ClientJournalPage"]] = None  # Ancestors
-    Forwardtrack: Optional[List["ClientJournalPage"]] = None  # Descendants
+    Database: Optional[JournalRelations] = None
+    Backtrack: Optional[List["JournalPage"]] = None  # Ancestors
+    Forwardtrack: Optional[List["JournalPage"]] = None  # Descendants
     
     
     def __repr__(self):
         rel_parts = []
-        for page in self.database:
-            page_text = repr(page)
-            rel_parts.append(indent(page_text, '\t'))
+        if self.Database:
+            rel_parts.append(indent(self.Database, '\t'))
         if self.Backtrack:
             for page in self.Backtrack:
                 page_text = repr(page)
@@ -73,50 +92,45 @@ class JournalRelation(BaseHierarchyProperty):
                 rel_parts.append(indent(page_text, '\t'))
 
         rels = '\n'.join(rel_parts)
-        return super().__repr__() + (f"\n\tRelations:\n{rels}" if rels else "")
+        return format_relation_heirarchy(super().__repr__(), rels, "Journal.Database")
 
 @dataclass
-class ClientPage(DataClassJsonMixin):
-    id: str
-    properties: ClientPageProperties
-    relations: Optional[ClientRelation] = None
-    icon: Optional[Icon] = None
+class CommonPage(DataClassJsonMixin):
+    Id: str
+    Properties: PageProperties
+    Icon: Optional[IconProperty] = None
     
     def __repr__(self):
-        icon = self.icon.__repr__() if self.icon else ''
-        rels = self.relations.__repr__() if self.relations else ''
+        icon = self.Icon.__repr__() if self.Icon else ''
+        return f"{icon} {self.Properties}"
 
+@dataclass
+class Page(CommonPage):
+    Relations: Optional[PageRelation] = None
+    
+    def __repr__(self):
         # ensure every line in rels is indented one more tab for the Relations: block
-        rels_indented = indent(rels, '\t')
-        return f"{icon} {self.properties}\n\tRelations:\n\t{rels_indented}"
+        return format_relation_heirarchy(super().__repr__(), self.Relations.__repr__(), "Page.Relations")
+
     
 @dataclass
-class ClientJournalPage(DataClassJsonMixin):
-    id: str
-    properties: ClientPageProperties
-    relations: Optional[JournalRelation] = None
-    icon: Optional[Icon] = None
+class JournalPage(CommonPage):
+    Relations: Optional[JournalRelation] = None
     
     def __repr__(self):
-        icon = self.icon.__repr__() if self.icon else ''
-        rels = self.relations.__repr__() if self.relations else ''
-
         # ensure every line in rels is indented one more tab for the Relations: block
-        rels_indented = indent(rels, '\t')
-        return f"{icon} {self.properties}\n\tRelations:\n\t{rels_indented}"
+        return format_relation_heirarchy(super().__repr__(), self.Relations.__repr__(), "Journal.Relations")
 
-@dataclass
-class JournalPageProperties(DataClassJsonMixin):
-    Title: Optional[TitleProperty]
-    Date: Optional[DateProperty]
-    Description: Optional[RichTextProperty]
-    
-    def __repr__(self):
-        title = self.Title.__repr__() if self.Title else "<Title: None>"
-        date = self.Date.__repr__() if self.Date else "<Date: None>"
-        return f"{title} | {date}"
 
 def indent(text: str, prefix: str = '\t') -> str:
     if not text:
         return ''
     return '\n'.join(prefix + line for line in text.splitlines())
+    
+    
+def format_relation_heirarchy(parent_repr: str, relationString: str, relation_name) -> str:
+    if relationString:
+        rels_indented = indent(relationString, '\t')
+        print(relation_name, parent_repr , len(rels_indented))
+        return parent_repr + f"\n\t{relation_name}:\n{rels_indented}"
+    return parent_repr

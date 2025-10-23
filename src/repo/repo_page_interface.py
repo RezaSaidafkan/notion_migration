@@ -1,34 +1,42 @@
 from dataclasses import dataclass
-from constants.literal_definitions import DatabaseName, JournalName
-from src.models.client_models import ClientPage, ClientPageProperties, ClientRelation
+from constants.literal_definitions import DatabaseName
+from src.models.client_models import CommonPage, PageProperties, PageRelation
 from typing import List, Dict, Any, Union
 from abc import ABC, abstractmethod
 
 
 @dataclass
 class PaginationResult:
-    results: List[ClientPage]
+    results: List[CommonPage]
     has_more: bool
     next_cursor: Union[str, None]
 
 
 class RepoPageInterface(ABC):
     @abstractmethod
-    async def get_page(self, page_id: str, database: DatabaseName) -> ClientPage:
+    async def get_page(self,         page_id: str,
+        database_name: DatabaseName) -> CommonPage:
         pass
 
     @abstractmethod
-    async def query_database(self, database_id: str, database: Union[DatabaseName, JournalName], filter: Dict[str, Any] = None, cursor: Union[str, None] = None) -> List[ClientPage]:
+    async def query_database(
+                    self,
+                    database_id: str,
+                    database_name: DatabaseName,
+                    page_size: int,
+                    cursor: str,
+                    debug: bool
+                    ) -> PaginationResult:
         pass
 
     @abstractmethod
-    async def create_page(self, parent: ClientPage, properties: ClientPageProperties, relations: ClientRelation = None) -> ClientPage:
+    async def create_page(self, parent: CommonPage, properties: PageProperties, relations: PageRelation = None) -> CommonPage:
         pass
 
     @abstractmethod # TODO: see if you can fix partial pass for dataclass properties
-    async def update_page(self, page: ClientPage, properties: ClientPageProperties) -> ClientPage:
+    async def update_page(self, page: CommonPage, properties: PageProperties) -> CommonPage:
         pass
 
     @abstractmethod
-    async def append_page_relations(self, page: ClientPage, relations: ClientRelation) -> None:
+    async def append_page_relations(self, page: CommonPage, relations: PageRelation) -> None:
         pass

@@ -10,7 +10,7 @@ class Config:
     NOTION_API_KEY: str
     SOURCE_PARENT_PAGE: str
     SOURCE_DATABASE_ID: str
-    TARGET_DATABASE_ID: str
+    JOURNAL_DATABASE_ID: str
     PAGE_SIZE: int
     SEMAPHORE_LIMIT: int
     DEBUG: bool
@@ -20,7 +20,7 @@ def get_config() -> Config:
         NOTION_API_KEY=os.getenv("NOTION_API_KEY"),
         SOURCE_PARENT_PAGE=os.getenv("SOURCE_PARENT_PAGE"),
         SOURCE_DATABASE_ID=os.getenv("SOURCE_DATABASE_ID"),
-        TARGET_DATABASE_ID=os.getenv("TARGET_DATABASE_ID"),
+        JOURNAL_DATABASE_ID=os.getenv("TARGET_DATABASE_ID"),
         PAGE_SIZE=int(os.getenv("PAGE_SIZE", PAGINATION_SIZE)),
         SEMAPHORE_LIMIT=int(os.getenv("SEMAPHORE_LIMIT", 10)),
         DEBUG=os.getenv("DEBUG", "False").lower() in ("true", "1")

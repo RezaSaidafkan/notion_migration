@@ -5,7 +5,7 @@ from dateutil import parser
 
 
 @dataclass
-class Icon(DataClassJsonMixin):
+class IconProperty(DataClassJsonMixin):
     type: str
     emoji: str
 
@@ -245,6 +245,6 @@ class ApiPageProperties(DataClassJsonMixin):
 @dataclass
 class ApiPage(DataClassJsonMixin):
     id: str
-    icon: Optional[Icon]
+    icon: Optional[IconProperty]
     properties: ApiPageProperties
 

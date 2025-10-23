@@ -1,11 +1,12 @@
 import src.service.service_page_notion as spn
-from src.constants.literal_definitions import DatabaseName, JournalName, SourceParentPageId
+from src.constants.literal_definitions import JournalRelations
 import src.repo.repo_page_notion as rpn
-from src.models.client_models import ClientPage
+from src.models.client_models import CommonPage
 from typing import List
 import asyncio
 from time import perf_counter
 from src.config.load_config import GLOBAL_CONFIG
+import pprint
 
 
 
@@ -17,21 +18,27 @@ class Runner:
     async def run(self, 
                   parent_page_id: str, 
                   source_database_id: str, 
-                  source_database_name: DatabaseName, 
                   journal_database_id: str,
-                  journal_db_name: JournalName.JOURNAL) -> List[ClientPage]:
-        root_page = await self.service.get_page(parent_page_id, source_database_name)
-        _ = await self.service.build_page_hierarchy(root_page, source_database_id, source_database_name, journal_database_id, journal_db_name)
+                  journal_relation: JournalRelations
+                  ) -> List[CommonPage]:
+        root_page = await self.service.get_source_page(parent_page_id)
+        
+        _ = await self.service.build_page_hierarchy(
+            root_page=root_page,
+            source_database_id=source_database_id,
+            journal_database_id=journal_database_id,
+            journal_relation=journal_relation
+            )
+        pprint.pprint(root_page)
 
 async def main():
     runner = Runner()
-    source_database_name = DatabaseName.LIFE_STYLE
+    journal_relation = JournalRelations.LIFE_STYLE
     await runner.run(
         parent_page_id=GLOBAL_CONFIG.SOURCE_PARENT_PAGE,
         source_database_id=GLOBAL_CONFIG.SOURCE_DATABASE_ID,
-        source_database_name=source_database_name,
-        journal_database_id=GLOBAL_CONFIG.TARGET_DATABASE_ID,
-        journal_db_name=JournalName.JOURNAL
+        journal_database_id=GLOBAL_CONFIG.JOURNAL_DATABASE_ID,
+        journal_relation=journal_relation
         )
 
 if __name__ == "__main__":
