@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
+from dataclasses import dataclass
 import enum
+
 
 class JournalRelations(enum.Enum):
     ANCESTORS = "Ancestors"
@@ -13,6 +15,7 @@ class JournalRelations(enum.Enum):
     EXCURSIONS = "Excursions"
     BELIEVES = "Believes"
 
+
 class SourceRelations(enum.Enum):
     ANCESTORS = "Ancestors"
     DESCENDANTS = "Descendants"
@@ -20,13 +23,19 @@ class SourceRelations(enum.Enum):
     FORWARDTRACK = "Forwardtrack"
     JOURNALS = "Journals"
 
+
 class DatabaseName(enum.Enum):
     SOURCE = "Source"
     JOURNAL = "Journal"
-    
+
 
 class SourceParentPageId(enum.Enum):
     SOURCE_PARENT_PAGE = "SOURCE_PARENT_PAGE"
 
-  
+
 PAGINATION_SIZE = 20
+
+
+@dataclass
+class DatabaseInfo:
+    DatabaseId: str

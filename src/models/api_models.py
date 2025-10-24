@@ -24,7 +24,7 @@ class RelationProperty(DataClassJsonMixin):
     id: str
     relation: List[Relation]
     type: str
-    
+
     def __repr__(self):
         return ", ".join([rel.__repr__() for rel in self.relation])
 
@@ -37,7 +37,7 @@ class Person(DataClassJsonMixin):
     avatar_url: Optional[str] = None
     object: Optional[str] = None
     person: Optional[Dict[str, Any]] = None
-    
+
     def __repr__(self):
         return self.name
 
@@ -47,7 +47,7 @@ class PeopleProperty(DataClassJsonMixin):
     id: str
     people: List[Person]
     type: str
-    
+
     def __repr__(self):
         return ", ".join([person.__repr__() for person in self.people])
 
@@ -57,7 +57,7 @@ class SelectOption(DataClassJsonMixin):
     color: str
     id: str
     name: str
-    
+
     def __repr__(self):
         return self.name
 
@@ -77,7 +77,7 @@ class StatusOption(DataClassJsonMixin):
     id: str
     name: str
     color: str
-    
+
     def __repr__(self):
         return self.name
 
@@ -87,7 +87,7 @@ class StatusProperty(DataClassJsonMixin):
     id: str
     status: StatusOption
     type: str
-    
+
     def __repr__(self):
         return self.status.__repr__()
 
@@ -115,7 +115,7 @@ class RichTextItem(DataClassJsonMixin):
     plain_text: str
     text: Optional[RichTextText] = None
     href: Optional[str] = None
-    
+
     def __repr__(self):
         # text can be None when Notion returns a plain_text-only item or when
         # the JSON payload doesn't include the nested 'text' object. Be defensive.
@@ -131,7 +131,7 @@ class RichTextProperty(DataClassJsonMixin):
     id: str
     type: str
     rich_text: List[RichTextItem]
-    
+
     def __repr__(self):
         return " ".join([item.plain_text for item in self.rich_text])
 
@@ -169,7 +169,7 @@ class DateProperty(DataClassJsonMixin):
 class TitleText(DataClassJsonMixin):
     content: str
     link: Optional[Any]
-    
+
     def __repr__(self):
         return self.content
 
@@ -181,7 +181,7 @@ class TitleItem(DataClassJsonMixin):
     href: Optional[str] = None
     plain_text: Optional[str] = None
     text: Optional[TitleText] = None
-    
+
     def __repr__(self):
         return self.text.__repr__() if self.text else ""
 
@@ -191,7 +191,7 @@ class TitleProperty(DataClassJsonMixin):
     id: str
     title: List[TitleItem]
     type: str
-    
+
     def __repr__(self):
         return " ".join([item.__repr__() for item in self.title])
 
@@ -223,6 +223,7 @@ class UrlProperty(DataClassJsonMixin):
     type: str
     url: Optional[str]
 
+
 @dataclass
 class ApiPageProperties(DataClassJsonMixin):
     # Required per user's request
@@ -241,10 +242,8 @@ class ApiPageProperties(DataClassJsonMixin):
     Journals: Optional[RelationProperty] = None
 
 
-
 @dataclass
 class ApiPage(DataClassJsonMixin):
     id: str
     icon: Optional[IconProperty]
     properties: ApiPageProperties
-

@@ -11,7 +11,11 @@ dependencies = [
     "dotenv (>=0.9.9,<0.10.0)",
     "notion-client (>=2.5.0,<3.0.0)",
     "dataclasses-json (>=0.6.7,<0.7.0)",
-    "python-dateutil (>=2.9.0.post0,<3.0.0)"
+    "python-dateutil (>=2.9.0.post0,<3.0.0)",
+    "mypy (>=1.18.2,<2.0.0)",
+    "pylint (>=4.0.2,<5.0.0)",
+    "types-python-dateutil (>=2.9.0.20251008,<3.0.0.0)",
+    "ruff (>=0.14.2,<0.15.0)"
 ]
 
 [tool.poetry]

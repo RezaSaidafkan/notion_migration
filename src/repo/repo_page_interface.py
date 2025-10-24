@@ -1,42 +1,36 @@
-from dataclasses import dataclass
-from constants.literal_definitions import DatabaseName
-from src.models.client_models import CommonPage, PageProperties, PageRelation
-from typing import List, Dict, Any, Union
+from typing import Dict, Any, TypeVar, Generic
 from abc import ABC, abstractmethod
 
-
-@dataclass
-class PaginationResult:
-    results: List[CommonPage]
-    has_more: bool
-    next_cursor: Union[str, None]
+T = TypeVar("T")  # CommonPage
+K = TypeVar("K")  # page id
+R = TypeVar("R")  # Pagination result
 
 
-class RepoPageInterface(ABC):
+class RepositoryInterface(Generic[K, T, R], ABC):
     @abstractmethod
-    async def get_page(self,         page_id: str,
-        database_name: DatabaseName) -> CommonPage:
+    async def read_page(self, page_id: K, debug: bool = False) -> T:
         pass
 
     @abstractmethod
     async def query_database(
-                    self,
-                    database_id: str,
-                    database_name: DatabaseName,
-                    page_size: int,
-                    cursor: str,
-                    debug: bool
-                    ) -> PaginationResult:
+        self,
+        database_id: str,
+        page_size: int,
+        filter: Dict[str, Any],
+        cursor: str | None,
+        debug: bool,
+    ) -> R:
         pass
 
     @abstractmethod
-    async def create_page(self, parent: CommonPage, properties: PageProperties, relations: PageRelation = None) -> CommonPage:
+    async def create_page(self, page: T, debug: bool) -> bool:
         pass
 
-    @abstractmethod # TODO: see if you can fix partial pass for dataclass properties
-    async def update_page(self, page: CommonPage, properties: PageProperties) -> CommonPage:
+    @abstractmethod  # TODO: see if you can fix partial pass for dataclass properties
+    async def update_page(self, page: T, debug: bool) -> bool:
         pass
 
-    @abstractmethod
-    async def append_page_relations(self, page: CommonPage, relations: PageRelation) -> None:
-        pass
+    # this should move to service layer
+    # @abstractmethod
+    # async def append_page_relations(self, page: CommonPage, relations: PageRelation) -> None:
+    #     pass

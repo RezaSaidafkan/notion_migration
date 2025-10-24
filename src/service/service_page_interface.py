@@ -1,53 +1,65 @@
-
-from typing import List, Union
-
-from constants.literal_definitions import DatabaseName, JournalRelations
-from src.models.client_models import CommonPage
+from typing import List, Coroutine, Type, Generic
+from src.constants.literal_definitions import JournalRelations, DatabaseInfo
+from src.models.client_models import CommonPage, T, PageId
 from abc import ABC, abstractmethod
 
-class ServicePageInterface(ABC):
+
+class ServicePageInterface(Generic[T], ABC):
     @abstractmethod
-    def get_page(self, page_id: str) -> CommonPage:
-        pass
-    
-    @abstractmethod
-    def query_database(self, database_id: str, database_name: DatabaseName, filter: dict) -> List[CommonPage]:
-        pass
-    
-    @abstractmethod
-    def build_page_hierarchy(self,
-                                   root_page: CommonPage, 
-                                   source_database_id: str, 
-                                   journal_database_id: str, 
-                                   journal_relation: JournalRelations,
-                                   level: int = 0) -> List[CommonPage]:
-        pass
-    
-    @abstractmethod
-    def create_or_update_page(self, page: CommonPage) -> CommonPage:
-        pass
-    
-    @abstractmethod
-    def add_relations_to_page(self, page: CommonPage, relations: List[str]) -> None:
-        pass
-    
-    @abstractmethod
-    def remove_relations_from_page(self, page: CommonPage, relations: List[str]) -> None:
-        pass
-    
-    @abstractmethod
-    def migrate_page(self, page: CommonPage, sourceDatabaseId: str, destinationDatabaseId: str) -> None:
+    def refresh_from_backend(
+        self, page_id: PageId
+    ) -> Coroutine[None, None, CommonPage]:
         pass
 
     @abstractmethod
-    def migrate_pages(self, pages: List[CommonPage], sourceDatabaseId: str, destinationDatabaseId: str) -> None:
-        pass
-    
-    @abstractmethod
-    def verify_page_migration(self, page_id: str) -> CommonPage:
+    async def query_database(
+        self, database_info: DatabaseInfo, database_type: Type[T], filter: dict
+    ) -> List[T]:
         pass
 
     @abstractmethod
-    def migrate_all_pages(self) -> None:
+    async def build_page_hierarchy(
+        self,
+        root_page: T,
+        source_database: DatabaseInfo,
+        journal_database: DatabaseInfo,
+        journal_relation: JournalRelations,
+        level: int = 0,
+    ) -> List[T]:
         pass
-    
+
+    @abstractmethod
+    async def create_or_update_page(self, page: CommonPage) -> CommonPage:
+        pass
+
+    @abstractmethod
+    async def add_relations_to_page(
+        self, page: CommonPage, relations: List[str]
+    ) -> None:
+        pass
+
+    @abstractmethod
+    async def remove_relations_from_page(
+        self, page: CommonPage, relations: List[str]
+    ) -> None:
+        pass
+
+    @abstractmethod
+    async def migrate_page(
+        self, page: CommonPage, sourceDatabaseId: str, destinationDatabaseId: str
+    ) -> None:
+        pass
+
+    @abstractmethod
+    async def migrate_pages(
+        self, pages: List[CommonPage], sourceDatabaseId: str, destinationDatabaseId: str
+    ) -> None:
+        pass
+
+    @abstractmethod
+    async def verify_page_migration(self, page: CommonPage) -> bool:
+        pass
+
+    @abstractmethod
+    async def migrate_all_pages(self) -> None:
+        pass

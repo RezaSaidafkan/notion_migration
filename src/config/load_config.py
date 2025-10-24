@@ -5,16 +5,18 @@ from src.constants.literal_definitions import PAGINATION_SIZE
 
 load_dotenv()
 
+
 @dataclass
 class Config:
-    NOTION_API_KEY: str
-    SOURCE_PARENT_PAGE: str
-    SOURCE_DATABASE_ID: str
-    JOURNAL_DATABASE_ID: str
+    NOTION_API_KEY: str | None
+    SOURCE_PARENT_PAGE: str | None
+    SOURCE_DATABASE_ID: str | None
+    JOURNAL_DATABASE_ID: str | None
     PAGE_SIZE: int
     SEMAPHORE_LIMIT: int
     DEBUG: bool
-    
+
+
 def get_config() -> Config:
     return Config(
         NOTION_API_KEY=os.getenv("NOTION_API_KEY"),
@@ -23,12 +25,14 @@ def get_config() -> Config:
         JOURNAL_DATABASE_ID=os.getenv("TARGET_DATABASE_ID"),
         PAGE_SIZE=int(os.getenv("PAGE_SIZE", PAGINATION_SIZE)),
         SEMAPHORE_LIMIT=int(os.getenv("SEMAPHORE_LIMIT", 10)),
-        DEBUG=os.getenv("DEBUG", "False").lower() in ("true", "1")
+        DEBUG=os.getenv("DEBUG", "False").lower() in ("true", "1"),
     )
+
 
 class GlobalConfig:
     def __init__(self):
-        if not hasattr(self, 'config'):
+        if not hasattr(self, "config"):
             self.config = get_config()
+
 
 GLOBAL_CONFIG = GlobalConfig().config

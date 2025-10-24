@@ -1,99 +1,129 @@
-import pprint
-from typing import List, Dict, Any, Union, Callable
-from src.models.client_models import Page, JournalPage, CommonPage, PageProperties, PageRelation, JournalPageProperties
+from typing import List, Dict, Any, Generic
+from src.models.client_models import (
+    Page,
+    JournalPage,
+    PageProperties,
+    JournalPageProperties,
+    PaginationResult,
+    T,
+    PageId,
+)
 from src.models.api_models import ApiPage
 from notion_client import AsyncClient as Client
-from src.repo.repo_page_interface import PaginationResult, RepoPageInterface
-from src.constants.literal_definitions import DatabaseName, JournalRelations, SourceRelations
+from src.repo.repo_page_interface import RepositoryInterface
 from src.config.load_config import GLOBAL_CONFIG
+from abc import abstractmethod
 
-class NotionClientAPI(RepoPageInterface):
+
+class ClientSingleton:
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
     def __init__(self, notion_token: str):
         self.notion = Client(auth=notion_token)
 
-    
-    async def get_page(
-        self,
-        page_id: str,
-        database_name: DatabaseName
-        ) -> CommonPage:
-        response = await self.notion.pages.retrieve(page_id=page_id)
-        return domain_convert_client_page(database_name)(ApiPage.from_dict(response))
+
+class NotionRepository(
+    Generic[T], RepositoryInterface[PageId, T, PaginationResult[T]], ClientSingleton
+):
+    def __init__(self, notion_token: str):
+        super().__init__(notion_token)
+
+    async def read_page(self, page_id: PageId, debug: bool = False) -> T:
+        raw_result = await self.notion.pages.retrieve(page_id=page_id.Id)
+        api_page = ApiPage.from_dict(raw_result)
+        page: T = self.convert_client_page(api_page)
+        return page
+
+    @abstractmethod
+    def convert_client_page(self, result: ApiPage) -> T:
+        pass
 
     async def query_database(
-                    self,
-                    database_id: str,
-                    database_name: DatabaseName,
-                    page_size: int,
-                    cursor: str = None,
-                    filter: Dict[str, Any] = None,
-                    debug: bool = GLOBAL_CONFIG.DEBUG
-                    ) -> PaginationResult:
+        self,
+        database_id: str,
+        page_size: int,
+        filter: Dict[str, Any],
+        cursor: str | None = None,
+        debug: bool = GLOBAL_CONFIG.DEBUG,
+    ) -> PaginationResult[T]:
         results = []
         has_more = True
         try:
             while has_more:
                 query = {
-                        "database_id": database_id,
-                        "start_cursor": cursor,
-                        "filter": filter or {},
-                        "page_size": page_size,
-                    }
-                pprint.pprint(query)
-                resp = await self.notion.databases.query(**query)
-                results.extend([ApiPage.from_dict(result) for result in resp["results"]])
+                    "start_cursor": cursor,
+                    "filter": filter or {},
+                    "page_size": page_size,
+                }
+                resp = await self.notion.databases.query(database_id, **query)
+                results.extend(
+                    [ApiPage.from_dict(result) for result in resp["results"]]
+                )
                 has_more = resp["has_more"]
                 cursor = resp.get("next_cursor")
                 if debug:
                     print(f"Fetched {len(results)} pages so far...")
-            converted_results = [domain_convert_client_page(database_name)(apiPage) for apiPage in results]
-            return PaginationResult(results=converted_results, has_more=has_more, next_cursor=cursor)
+            converted_results: List[T] = [
+                self.convert_client_page(apiPage) for apiPage in results
+            ]
+            return PaginationResult[T](
+                results=converted_results, has_more=has_more, next_cursor=cursor
+            )
         except Exception as e:
             print(f"Error querying database {database_id}: {e}")
-            return PaginationResult(results=[], has_more=False, next_cursor=None)
+            return PaginationResult[T](results=[], has_more=False, next_cursor=None)
 
-    async def create_page(self, database_id: str, pageProperties: PageProperties, pageRelations: PageRelation) -> CommonPage:
-        raise NotImplementedError("Creating pages is not implemented in NotionClientAPI")
+    async def create_page(self, page: T, debug: bool) -> bool:
+        raise NotImplementedError(
+            "Creating pages is not implemented in NotionClientAPI"
+        )
 
-    async def update_page(self, page: CommonPage, properties: Dict[str, Any]) -> CommonPage:
-        raise NotImplementedError("Updating pages is not implemented in NotionClientAPI")
+    async def update_page(self, page: T, debug: bool) -> bool:
+        raise NotImplementedError(
+            "Updating pages is not implemented in NotionClientAPI"
+        )
 
-    async def append_page_relations(self, page: CommonPage, relations: PageRelation) -> None:
-        raise NotImplementedError("Appending relations is not implemented in NotionClientAPI")
+
+class NotionRepoPage(NotionRepository[Page]):
+    def __init__(self, notion_token: str):
+        super().__init__(notion_token)
+
+    def convert_client_page(self, result: ApiPage) -> Page:
+        props = result.properties
+        # Build client-facing properties using the typed dataclasses
+        client_props = PageProperties(
+            Type=props.Type,
+            Title=props.Title,
+            Assignee=props.Assignee,
+            Priority=props.Priority,
+            Urgency=props.Urgency,
+            Status=props.Status,
+            Timeline=props.Timeline,
+            Description=props.Description,
+        )
+        return Page(Id=PageId(Id=result.id), Icon=result.icon, Properties=client_props)
 
 
-def domain_convert_client_source_page(apiPage: ApiPage) -> CommonPage:
-    props = apiPage.properties
+class NotionRepoJournalPage(NotionRepository[JournalPage]):
+    def __init__(self, notion_token: str):
+        super().__init__(notion_token)
 
-    # Build client-facing properties using the typed dataclasses
-    client_props = PageProperties(
-        Type=props.Type,
-        Title=props.Title,
-        Assignee=props.Assignee,
-        Priority=props.Priority,
-        Urgency=props.Urgency,
-        Status=props.Status,
-        Timeline=props.Timeline,
-        Description=props.Description,
-        
-    )
-    return CommonPage(Id=apiPage.id, Icon=apiPage.icon, Properties=client_props)
+    def convert_client_page(self, result: ApiPage) -> JournalPage:
+        props = result.properties
 
-def domain_convert_client_journal_page(apiPage: ApiPage) -> JournalPage:
-    props = apiPage.properties
-
-    # Build client-facing properties using the typed dataclasses
-    client_props = JournalPageProperties(
-        Type=props.Type,
-        Title=props.Title,
-        Status=props.Status,
-        Timeline=props.Timeline,
-        Description=props.Description
-    )
-    return JournalPage(Id=apiPage.id, Icon=apiPage.icon, Properties=client_props)
-
-def domain_convert_client_page(database_name: DatabaseName) -> Callable[[ApiPage], Union[Page, JournalPage]]:
-        if database_name == DatabaseName.SOURCE:
-            return domain_convert_client_source_page
-        else:
-            return domain_convert_client_journal_page
+        # Build client-facing properties using the typed dataclasses
+        client_props = JournalPageProperties(
+            Type=props.Type,
+            Title=props.Title,
+            Status=props.Status,
+            Timeline=props.Timeline,
+            Description=props.Description,
+        )
+        return JournalPage(
+            Id=PageId(Id=result.id), Icon=result.icon, Properties=client_props
+        )
