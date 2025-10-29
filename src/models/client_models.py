@@ -12,9 +12,15 @@ from .api_models import (
     TitleProperty,
 )
 
-# Define T
-T = TypeVar("T", bound=Union["Page", "JournalPage"])
-# T = TypeVar("T", Page, JournalPage)
+# Define P as Page types
+P = TypeVar("P", bound=Union["Page", "JournalPage"])
+# P = TypeVar("P", Page, JournalPage)
+# Define DB as Database types
+DB = TypeVar("DB", bound=Union["Page", "JournalPage"])
+# Define R as Relation types
+R = TypeVar("R", bound=Union["PageRelation", "JournalRelation"])
+# Define K as Page ID type
+K = TypeVar("K", bound="PageId")
 
 
 @dataclass
@@ -58,9 +64,9 @@ class JournalPageProperties(DataClassJsonMixin):
 
 
 @dataclass
-class BaseHierarchyProperty(Generic[T], DataClassJsonMixin):
-    Ancestors: Optional[List["T"]]
-    Descendants: Optional[List["T"]]
+class BaseHierarchyProperty(Generic[P], DataClassJsonMixin):
+    Ancestors: Optional[List["P"]]
+    Descendants: Optional[List["P"]]
 
     def __repr__(self):
         rel_parts = []
@@ -75,8 +81,8 @@ class BaseHierarchyProperty(Generic[T], DataClassJsonMixin):
 
 
 @dataclass
-class PageRelation(Generic[T], BaseHierarchyProperty[T]):
-    Journals: Optional[List["T"]]
+class PageRelation(Generic[P], BaseHierarchyProperty[P]):
+    Journals: Optional[List["P"]]
 
     def __repr__(self):
         journ_parts = []
@@ -162,7 +168,7 @@ def format_relation_heirarchy(
 
 
 @dataclass
-class PaginationResult(Generic[T]):
-    results: List[T]
+class PaginationResult(Generic[P]):
+    results: List[P]
     has_more: bool
     next_cursor: Union[str, None]

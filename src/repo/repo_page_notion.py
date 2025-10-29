@@ -5,7 +5,7 @@ from src.models.client_models import (
     PageProperties,
     JournalPageProperties,
     PaginationResult,
-    T,
+    P,
     PageId,
 )
 from src.models.api_models import ApiPage
@@ -28,19 +28,19 @@ class ClientSingleton:
 
 
 class NotionRepository(
-    Generic[T], RepositoryInterface[PageId, T, PaginationResult[T]], ClientSingleton
+    Generic[P], RepositoryInterface[PageId, P, PaginationResult[P]], ClientSingleton
 ):
     def __init__(self, notion_token: str):
         super().__init__(notion_token)
 
-    async def read_page(self, page_id: PageId, debug: bool = False) -> T:
+    async def read_page(self, page_id: PageId, debug: bool = False) -> P:
         raw_result = await self.notion.pages.retrieve(page_id=page_id.Id)
         api_page = ApiPage.from_dict(raw_result)
-        page: T = self.convert_client_page(api_page)
+        page: P = self.convert_client_page(api_page)
         return page
 
     @abstractmethod
-    def convert_client_page(self, result: ApiPage) -> T:
+    def convert_client_page(self, result: ApiPage) -> P:
         pass
 
     async def query_database(
@@ -50,7 +50,7 @@ class NotionRepository(
         filter: Dict[str, Any],
         cursor: str | None = None,
         debug: bool = GLOBAL_CONFIG.DEBUG,
-    ) -> PaginationResult[T]:
+    ) -> PaginationResult[P]:
         results = []
         has_more = True
         try:
@@ -68,22 +68,22 @@ class NotionRepository(
                 cursor = resp.get("next_cursor")
                 if debug:
                     print(f"Fetched {len(results)} pages so far...")
-            converted_results: List[T] = [
+            converted_results: List[P] = [
                 self.convert_client_page(apiPage) for apiPage in results
             ]
-            return PaginationResult[T](
+            return PaginationResult[P](
                 results=converted_results, has_more=has_more, next_cursor=cursor
             )
         except Exception as e:
             print(f"Error querying database {database_id}: {e}")
-            return PaginationResult[T](results=[], has_more=False, next_cursor=None)
+            return PaginationResult[P](results=[], has_more=False, next_cursor=None)
 
-    async def create_page(self, page: T, debug: bool) -> bool:
+    async def create_page(self, page: P, debug: bool) -> bool:
         raise NotImplementedError(
             "Creating pages is not implemented in NotionClientAPI"
         )
 
-    async def update_page(self, page: T, debug: bool) -> bool:
+    async def update_page(self, page: P, debug: bool) -> bool:
         raise NotImplementedError(
             "Updating pages is not implemented in NotionClientAPI"
         )

@@ -7,14 +7,17 @@ from time import perf_counter
 from src.config.load_config import GLOBAL_CONFIG
 import pprint
 from typing import Union
-from src.models.client_models import Page, JournalPage
+from src.models.client_models import Page, JournalPage, PageRelation, JournalRelation
 
+PageType = Union[Page, JournalPage]
+DatabaseType = Union[Page, JournalPage]
+RelationType = Union[PageRelation, JournalRelation]
 
 class Runner:
     def __init__(self):
         repo_notion_source = NotionRepoPage(GLOBAL_CONFIG.NOTION_API_KEY)
         repo_notion_journal = NotionRepoJournalPage(GLOBAL_CONFIG.NOTION_API_KEY)
-        self.service = spn.ServicePage[Union[Page, JournalPage]](
+        self.service = spn.ServicePage[PageId, PageType, DatabaseType, RelationType](
             repo_journal=repo_notion_journal, repo_source=repo_notion_source
         )
 
