@@ -44,7 +44,7 @@ async def main():
     runner = Runner()
     journal_relation = JournalRelations.LIFE_STYLE
     journal_db = DatabaseInfo(DatabaseId=GLOBAL_CONFIG.JOURNAL_DATABASE_ID)
-    source_db = DatabaseInfo(DatabaseId=GLOBAL_CONFIG.SOURCE_DATABASE_ID)
+    source_db = DatabaseInfo(DatabaseId=GLOBAL_CONFIG.SOURCE_DATABASE_ID_LIFE_STYLE)
     await runner.run(
         parent_page_id=GLOBAL_CONFIG.SOURCE_PARENT_PAGE,
         source_database=source_db,

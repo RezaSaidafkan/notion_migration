@@ -10,7 +10,8 @@ load_dotenv()
 class Config:
     NOTION_API_KEY: str | None
     SOURCE_PARENT_PAGE: str | None
-    SOURCE_DATABASE_ID: str | None
+    SOURCE_DATABASE_ID_LIFE_STYLE: str | None
+    SOURCE_DATABASE_ID_NUCLEUS: str | None
     JOURNAL_DATABASE_ID: str | None
     PAGE_SIZE: int
     SEMAPHORE_LIMIT: int
@@ -21,7 +22,8 @@ def get_config() -> Config:
     return Config(
         NOTION_API_KEY=os.getenv("NOTION_API_KEY"),
         SOURCE_PARENT_PAGE=os.getenv("SOURCE_PARENT_PAGE"),
-        SOURCE_DATABASE_ID=os.getenv("SOURCE_DATABASE_ID"),
+        SOURCE_DATABASE_ID_LIFE_STYLE=os.getenv("SOURCE_DATABASE_ID_LIFE_STYLE"),
+        SOURCE_DATABASE_ID_NUCLEUS=os.getenv("SOURCE_DATABASE_ID_NUCLEUS"),
         JOURNAL_DATABASE_ID=os.getenv("TARGET_DATABASE_ID"),
         PAGE_SIZE=int(os.getenv("PAGE_SIZE", PAGINATION_SIZE)),
         SEMAPHORE_LIMIT=int(os.getenv("SEMAPHORE_LIMIT", 10)),
