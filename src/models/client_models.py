@@ -92,8 +92,10 @@ class PageRelation(Generic[P], BaseHierarchyProperty[P]):
                 journ_parts.append(indent(page_text, "\t"))
 
             journ = "\n".join(journ_parts)
-        return format_relation_heirarchy(super().__repr__(), journ, "Page.Journals")
-
+            return format_relation_heirarchy(
+                super().__repr__(), journ, "Page.Journals"
+                )
+        return super().__repr__()
 
 @dataclass
 class JournalRelation(BaseHierarchyProperty):
