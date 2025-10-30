@@ -255,7 +255,7 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
             database_info=journal_database_info,
             database_type=cast(DB, type(page)),
             filter={
-                "property": journal_relation.DESCENDANTS.value,
+                "property": journal_relation.ANCESTORS.value,
                 "relation": {"contains": page.Id.Id},
             },
         )
@@ -265,23 +265,23 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
                 Descendants=cast(List[P], sub_journal_pages),
                 Ancestors=cast(List[P], [page]),
             )
-            # for journ_page in sub_journal_pages:
-            #     tg.create_task(
-            #         _timed(
-            #             _limited(
-            #                 semaphore,
-            #                 self.process_journal_recursive(
-            #                     journ_page,
-            #                     journal_database_info,
-            #                     journal_relation,
-            #                     tg,
-            #                     semaphore,
-            #                 ),
-            #             ),
-            #             journ_page,
-            #             "process_journal_recursive",
-            #         )
-            #     )
+            for journ_page in sub_journal_pages:
+                tg.create_task(
+                    _timed(
+                        _limited(
+                            semaphore,
+                            self.process_journal_recursive(
+                                journ_page,
+                                journal_database_info,
+                                journal_relation,
+                                tg,
+                                semaphore,
+                            ),
+                        ),
+                        journ_page,
+                        "process_journal_recursive",
+                    )
+                )
 
     async def create_or_update_page(self, page: P) -> bool:
         raise NotImplementedError(
