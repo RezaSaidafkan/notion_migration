@@ -74,10 +74,12 @@ class BaseHierarchyProperty(Generic[P], DataClassJsonMixin):
             for page in self.Descendants:
                 page_text = repr(page)
                 rel_parts.append(indent(page_text, "\t"))
-
-        return format_relation_heirarchy(
-            super().__repr__(), "\n".join(rel_parts), "Base.Descendants"
-        )
+        
+        if rel_parts:
+            return format_relation_heirarchy(
+                "", "\n".join(rel_parts), "Descendants"
+            )
+        return ""
 
 
 @dataclass
@@ -92,10 +94,9 @@ class PageRelation(Generic[P], BaseHierarchyProperty[P]):
                 journ_parts.append(indent(page_text, "\t"))
 
             journ = "\n".join(journ_parts)
-            return format_relation_heirarchy(
-                super().__repr__(), journ, "Page.Journals"
-                )
-        return super().__repr__()
+            base_repr = super().__repr__()
+            return format_relation_heirarchy(base_repr, journ, "Journals")
+        return base_repr
 
 @dataclass
 class JournalRelation(BaseHierarchyProperty):
@@ -116,8 +117,11 @@ class JournalRelation(BaseHierarchyProperty):
                 page_text = repr(page)
                 rel_parts.append(indent(page_text, "\t"))
 
-        rels = "\n".join(rel_parts)
-        return format_relation_heirarchy(super().__repr__(), rels, "Journal.Database")
+        base_repr = super().__repr__()
+        if rel_parts:
+            rels = "\n".join(rel_parts)
+            return format_relation_heirarchy(base_repr, rels, "Database")
+        return base_repr
 
 
 @dataclass
@@ -138,7 +142,7 @@ class Page(CommonPage):
     def __repr__(self):
         # ensure every line in rels is indented one more tab for the Relations: block
         return format_relation_heirarchy(
-            super().__repr__(), self.Relations.__repr__(), "Page.Relations"
+            super().__repr__(), self.Relations.__repr__(), "Relations"
         )
 
 
@@ -148,9 +152,11 @@ class JournalPage(CommonPage):
 
     def __repr__(self):
         # ensure every line in rels is indented one more tab for the Relations: block
-        return format_relation_heirarchy(
-            super().__repr__(), self.Relations.__repr__(), "Journal.Relations"
-        )
+        if self.Relations:
+            return format_relation_heirarchy(
+                super().__repr__(), self.Relations.__repr__(), "Relations"
+            )
+        return super().__repr__()
 
 
 def indent(text: str, prefix: str = "\t") -> str:
@@ -160,12 +166,14 @@ def indent(text: str, prefix: str = "\t") -> str:
 
 
 def format_relation_heirarchy(
-    parent_repr: str, relationString: str, relation_name
+    parent_repr: str, relationString: str, relation_name: str
 ) -> str:
     if relationString is not None:
         rels_indented = indent(relationString, "\t")
-        # print(relation_name, parent_repr , len(rels_indented))
-        return parent_repr + f"\n\t{relation_name}:\n{rels_indented}"
+        if parent_repr:
+            return parent_repr + f"\n{indent(relation_name)}:\n{rels_indented}"
+        else:
+            return f"{indent(relation_name)}:\n{rels_indented}"
     return parent_repr
 
 

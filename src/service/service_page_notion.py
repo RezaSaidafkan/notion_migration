@@ -100,7 +100,6 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
     async def query_database(
         self, database_info: DatabaseInfo, database_type: DB, filter: dict
     ) -> List[P]:
-        print("query database_type: ", database_type)
         repo: NotionRepository
         if database_type is Page:
             repo = self._repo_source
@@ -266,23 +265,23 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
                 Descendants=cast(List[P], sub_journal_pages),
                 Ancestors=cast(List[P], [page]),
             )
-            for journ_page in sub_journal_pages:
-                tg.create_task(
-                    _timed(
-                        _limited(
-                            semaphore,
-                            self.process_journal_recursive(
-                                journ_page,
-                                journal_database_info,
-                                journal_relation,
-                                tg,
-                                semaphore,
-                            ),
-                        ),
-                        journ_page,
-                        "process_journal_recursive",
-                    )
-                )
+            # for journ_page in sub_journal_pages:
+            #     tg.create_task(
+            #         _timed(
+            #             _limited(
+            #                 semaphore,
+            #                 self.process_journal_recursive(
+            #                     journ_page,
+            #                     journal_database_info,
+            #                     journal_relation,
+            #                     tg,
+            #                     semaphore,
+            #                 ),
+            #             ),
+            #             journ_page,
+            #             "process_journal_recursive",
+            #         )
+            #     )
 
     async def create_or_update_page(self, page: P) -> bool:
         raise NotImplementedError(
