@@ -51,7 +51,7 @@ class PageProperties(DataClassJsonMixin):
 class JournalPageProperties(DataClassJsonMixin):
     Title: TitleProperty
     Type: Optional[SelectProperty]
-    Status: Optional[StatusProperty]
+    Status: Optional[SelectProperty]  # update in the database, now we have State in source db and Select in journal db
     Timeline: Optional[DateProperty]
     Description: Optional[RichTextProperty]
 
@@ -92,9 +92,10 @@ class PageRelation(Generic[P], BaseHierarchyProperty[P]):
             for page in self.Journals:
                 page_text = repr(page)
                 journ_parts.append(indent(page_text, "\t"))
-
+        
+        base_repr = super().__repr__()
+        if journ_parts:
             journ = "\n".join(journ_parts)
-            base_repr = super().__repr__()
             return format_relation_heirarchy(base_repr, journ, "Journals")
         return base_repr
 

@@ -15,6 +15,10 @@ from src.config.load_config import GLOBAL_CONFIG
 from abc import abstractmethod
 
 
+class RepositoryError(Exception):
+    pass
+
+
 class ClientSingleton:
     _instance = None
 
@@ -74,9 +78,10 @@ class NotionRepository(
             return PaginationResult[P](
                 results=converted_results, has_more=has_more, next_cursor=cursor
             )
+        except KeyError as keyError:
+            raise RepositoryError(f"Failed to parse API response to internal model:\n{keyError}")
         except Exception as e:
-            print(f"Error querying database {database_id}: {e}")
-            return PaginationResult[P](results=[], has_more=False, next_cursor=None)
+            raise RepositoryError(e)
 
     async def create_page(self, page: P, debug: bool) -> bool:
         raise NotImplementedError(
@@ -94,19 +99,22 @@ class NotionRepoPage(NotionRepository[Page]):
         super().__init__(notion_token)
 
     def convert_client_page(self, result: ApiPage) -> Page:
-        props = result.properties
-        # Build client-facing properties using the typed dataclasses
-        client_props = PageProperties(
-            Type=props.Type,
-            Title=props.Title,
-            Assignee=props.Assignee,
-            Priority=props.Priority,
-            Urgency=props.Urgency,
-            Status=props.Status,
-            Timeline=props.Timeline,
-            Description=props.Description,
-        )
-        return Page(Id=PageId(Id=result.id), Icon=result.icon, Properties=client_props)
+        try:
+            props = result.properties
+            # Build client-facing properties using the typed dataclasses
+            client_props = PageProperties(
+                Type=props.Type,
+                Title=props.Title,
+                Assignee=props.Assignee,
+                Priority=props.Priority,
+                Urgency=props.Urgency,
+                Status=props.Status,
+                Timeline=props.Timeline,
+                Description=props.Description,
+            )
+            return Page(Id=PageId(Id=result.id), Icon=result.icon, Properties=client_props)
+        except Exception as e:
+            raise RepositoryError(f"Failed to parse API response to Page: {e}")
 
 
 class NotionRepoJournalPage(NotionRepository[JournalPage]):
@@ -114,16 +122,19 @@ class NotionRepoJournalPage(NotionRepository[JournalPage]):
         super().__init__(notion_token)
 
     def convert_client_page(self, result: ApiPage) -> JournalPage:
-        props = result.properties
+        try:
+            props = result.properties
 
-        # Build client-facing properties using the typed dataclasses
-        client_props = JournalPageProperties(
-            Type=props.Type,
-            Title=props.Title,
-            Status=props.Status,
-            Timeline=props.Timeline,
-            Description=props.Description,
-        )
-        return JournalPage(
-            Id=PageId(Id=result.id), Icon=result.icon, Properties=client_props
-        )
+            # Build client-facing properties using the typed dataclasses
+            client_props = JournalPageProperties(
+                Type=props.Type,
+                Title=props.Title,
+                Status=props.Status,
+                Timeline=props.Timeline,
+                Description=props.Description,
+            )
+            return JournalPage(
+                Id=PageId(Id=result.id), Icon=result.icon, Properties=client_props
+            )
+        except Exception as e:
+            raise RepositoryError(f"Failed to parse API response to JournalPage: {e}")
