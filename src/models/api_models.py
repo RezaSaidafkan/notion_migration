@@ -229,7 +229,7 @@ class ApiPageProperties(DataClassJsonMixin):
     # Required per user's request
     Title: TitleProperty
     Type: SelectProperty
-    Status: StatusProperty
+    Status: StatusProperty | SelectProperty
     Timeline: DateProperty
 
     # Other fields (optional)
