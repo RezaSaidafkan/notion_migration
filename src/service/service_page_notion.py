@@ -45,7 +45,7 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
             Id=page_id, Icon=retrieved_page.Icon, Properties=retrieved_page.Properties
         ))
 
-    def get_common_pages(
+    def get_pages(
         self,
         page: P,
         database_info: DatabaseInfo,
@@ -75,26 +75,32 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         database_info: DatabaseInfo,
         relation: SourceRelations,
         tg: asyncio.TaskGroup) -> Task[List[P]]:
-        return cast(Task[List[P]], self.get_common_pages(
-            page=cast(P, page),
-            database_info=database_info,
-            database_type=cast(DB, Page),
-            relation=relation,
-            tg=tg
-        ))
+        return cast(
+                Task[List[P]], 
+                self.get_pages(
+                    page=cast(P, page),
+                    database_info=database_info,
+                    database_type=cast(DB, Page),
+                    relation=relation,
+                    tg=tg
+                    )
+                )
     
     def get_journal_pages(self,
         page: P,
         database_info: DatabaseInfo,
         relation: JournalRelations,
         tg: asyncio.TaskGroup) -> Task[List[P]]:
-        return cast(Task[List[P]], self.get_common_pages(
-            page=cast(P, page),
-            database_info=database_info,
-            database_type=cast(DB, JournalPage),
-            relation=relation,
-            tg=tg
-        ))
+        return cast(
+                Task[List[P]],
+                self.get_pages(
+                    page=cast(P, page),
+                    database_info=database_info,
+                    database_type=cast(DB, JournalPage),
+                    relation=relation,
+                    tg=tg
+                    )
+                )
         
 
     async def query_database(
@@ -176,7 +182,7 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         sub_pages_tasks: Task[List[P]] = self.get_source_pages(
             page=page,
             database_info=source_database_info,
-            relation=SourceRelations.JOURNALS,
+            relation=SourceRelations.ANCESTORS,
             tg=tg,
         ) # type: ignore
 
