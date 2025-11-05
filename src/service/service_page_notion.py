@@ -257,13 +257,11 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         This function processes a journal page recursively, fetching its sub-journal pages.
         Assigns the found sub-journal pages to the Relations.Descendants / Relations.Ancestors attributes of the page.
         """
-        sub_journal_pages: List[P] = await self.query_database(
+        sub_journal_pages: List[P] = await self.get_journal_pages(
+            page=page,
             database_info=journal_database_info,
-            database_type=cast(DB, type(page)),
-            filter={
-                "property": journal_relation.ANCESTORS.value,
-                "relation": {"contains": page.Id.Id},
-            },
+            relation=JournalRelations.ANCESTORS,
+            tg=tg
         )
 
         if sub_journal_pages:
