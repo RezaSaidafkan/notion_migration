@@ -133,6 +133,11 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
             exhausted = not pagination.has_more
         return pages
 
+    async def query_database2(
+        self, database_info: DatabaseInfo, database_type: DB, filter: dict
+    ) -> List[P]:
+        raise RuntimeError
+        
     async def build_page_hierarchy(
         self,
         root_page: P,
@@ -180,12 +185,12 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         # create the coroutines and run them concurrently with timing
 
         sub_pages_tasks: Task[List[P]] = self.get_source_pages(
-            page=page,
-            database_info=source_database_info,
-            relation=SourceRelations.ANCESTORS,
-            tg=tg,
+        page=page,
+        database_info=source_database_info,
+        relation=SourceRelations.ANCESTORS,
+        tg=tg,
         ) # type: ignore
-
+        
         journal_database_tasks: Task[List[P]] = self.get_journal_pages(
             page=page,
             database_info=journal_database_info, 
@@ -193,10 +198,12 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
             tg=tg
         ) # type: ignore
 
+            
         sub_pages, journal_database_pages = await asyncio.gather(
             sub_pages_tasks, journal_database_tasks
         )
         page.Relations = PageRelation(Descendants=None, Ancestors=None, Journals=None)
+        
 
         if journal_database_pages is not None:
             page.Relations.Journals = journal_database_pages
@@ -347,3 +354,4 @@ async def _timed(coro, page: P, label: str, debug: bool = GLOBAL_CONFIG.DEBUG) -
     else:
         res = await coro
     return res
+

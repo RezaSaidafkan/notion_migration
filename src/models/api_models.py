@@ -1,25 +1,30 @@
-from dataclasses import dataclass
-from typing import Any, List, Optional, Dict
-from dataclasses_json import DataClassJsonMixin
-from dateutil import parser
+from typing import Any, List, Optional, Dict, Literal
+from pydantic import BaseModel
+from datetime import datetime
 
 
-@dataclass
-class IconProperty(DataClassJsonMixin):
-    type: str
-    emoji: str
+External = Literal['external']
+Emoji = Literal['emoji']
 
+class ExternalEmoji(BaseModel):
+    type: External
+    external: dict
+
+class IconProperty(BaseModel):
+    type: Emoji
+    emoji: Optional[str]
+  
     def __repr__(self):
         return self.emoji
 
 
-@dataclass
-class Relation(DataClassJsonMixin):
+
+class Relation(BaseModel):
     id: str
 
 
-@dataclass
-class RelationProperty(DataClassJsonMixin):
+
+class RelationProperty(BaseModel):
     has_more: bool
     id: str
     relation: List[Relation]
@@ -29,8 +34,8 @@ class RelationProperty(DataClassJsonMixin):
         return ", ".join([rel.__repr__() for rel in self.relation])
 
 
-@dataclass
-class Person(DataClassJsonMixin):
+
+class Person(BaseModel):
     type: str
     id: str
     name: str
@@ -42,8 +47,8 @@ class Person(DataClassJsonMixin):
         return self.name
 
 
-@dataclass
-class PeopleProperty(DataClassJsonMixin):
+
+class PeopleProperty(BaseModel):
     id: str
     people: List[Person]
     type: str
@@ -52,8 +57,8 @@ class PeopleProperty(DataClassJsonMixin):
         return ", ".join([person.__repr__() for person in self.people])
 
 
-@dataclass
-class SelectOption(DataClassJsonMixin):
+
+class SelectOption(BaseModel):
     color: str
     id: str
     name: str
@@ -62,18 +67,19 @@ class SelectOption(DataClassJsonMixin):
         return self.name
 
 
-@dataclass
-class SelectProperty(DataClassJsonMixin):
+
+class SelectProperty(BaseModel):
     id: str
-    select: SelectOption
     type: str
+    select: Optional[SelectOption] = None
 
     def __repr__(self):
-        return self.select.__repr__()
+        if self.select:
+            return self.select.__repr__()
 
 
-@dataclass
-class StatusOption(DataClassJsonMixin):
+
+class StatusOption(BaseModel):
     id: str
     name: str
     color: str
@@ -82,8 +88,8 @@ class StatusOption(DataClassJsonMixin):
         return self.name
 
 
-@dataclass
-class StatusProperty(DataClassJsonMixin):
+
+class StatusProperty(BaseModel):
     id: str
     status: StatusOption
     type: str
@@ -92,14 +98,14 @@ class StatusProperty(DataClassJsonMixin):
         return self.status.__repr__()
 
 
-@dataclass
-class RichTextText(DataClassJsonMixin):
+
+class RichTextText(BaseModel):
     content: str
     link: Optional[Any] = None
 
 
-@dataclass
-class Annotations(DataClassJsonMixin):
+
+class Annotations(BaseModel):
     bold: bool
     code: bool
     color: str
@@ -108,8 +114,8 @@ class Annotations(DataClassJsonMixin):
     underline: bool
 
 
-@dataclass
-class RichTextItem(DataClassJsonMixin):
+
+class RichTextItem(BaseModel):
     type: str
     annotations: Annotations
     plain_text: str
@@ -126,8 +132,8 @@ class RichTextItem(DataClassJsonMixin):
         return ""
 
 
-@dataclass
-class RichTextProperty(DataClassJsonMixin):
+
+class RichTextProperty(BaseModel):
     id: str
     type: str
     rich_text: List[RichTextItem]
@@ -136,37 +142,31 @@ class RichTextProperty(DataClassJsonMixin):
         return " ".join([item.plain_text for item in self.rich_text])
 
 
-@dataclass
-class DateProperty(DataClassJsonMixin):
-    @dataclass
-    class DateValue(DataClassJsonMixin):
-        start: Optional[str]
-        end: Optional[str]
-        time_zone: Optional[str]
-
-    id: str
-    type: str
-    date: DateValue
-
-    def _fmt_iso(self, iso: Optional[str]) -> str:
-        if not iso:
-            return ""
-        dt = parser.isoparse(iso)
-        return dt.strftime("%Y-%m-%d %H:%M")
+class DateProperty(BaseModel):
+    start: Optional[datetime] = None
+    end: Optional[datetime] = None
+    time_zone: Optional[str] = None
 
     def __repr__(self) -> str:
-        if not self.date:
+        if not self.start:
             return "<Date: None>"
-        start = self._fmt_iso(self.date.start)
-        end = self._fmt_iso(self.date.end)
-        tz = self.date.time_zone
-        if end:
-            return f"{start} → {end}" + (f" ({tz})" if tz else "")
-        return f"{start}" + (f" ({tz})" if tz else "")
+        start_str = self.start.strftime("%Y-%m-%d")
+        if not self.end:
+            return start_str
+        end_str = self.end.strftime("%Y-%m-%d")
+        return f"{start_str} → {end_str}"
+
+class TimelineProperty(BaseModel):
+    id: str
+    type: str
+    date: Optional[DateProperty] = None
+
+    def __repr__(self):
+        return self.date.__repr__() if self.date else "<Date: None>"
 
 
-@dataclass
-class TitleText(DataClassJsonMixin):
+
+class TitleText(BaseModel):
     content: str
     link: Optional[Any]
 
@@ -174,8 +174,8 @@ class TitleText(DataClassJsonMixin):
         return self.content
 
 
-@dataclass
-class TitleItem(DataClassJsonMixin):
+
+class TitleItem(BaseModel):
     type: str
     annotations: Optional[Annotations] = None
     href: Optional[str] = None
@@ -186,8 +186,8 @@ class TitleItem(DataClassJsonMixin):
         return self.text.__repr__() if self.text else ""
 
 
-@dataclass
-class TitleProperty(DataClassJsonMixin):
+
+class TitleProperty(BaseModel):
     id: str
     title: List[TitleItem]
     type: str
@@ -196,41 +196,41 @@ class TitleProperty(DataClassJsonMixin):
         return " ".join([item.__repr__() for item in self.title])
 
 
-@dataclass
-class MultiSelectOption(DataClassJsonMixin):
-    color: Optional[str]
+
+class MultiSelectOption(BaseModel):
     id: Optional[str]
     name: Optional[str]
+    color: Optional[str]
 
 
-@dataclass
-class MultiSelectProperty(DataClassJsonMixin):
+
+class MultiSelectProperty(BaseModel):
     id: str
+    type: str
     multi_select: List[MultiSelectOption]
-    type: str
 
 
-@dataclass
-class CheckboxProperty(DataClassJsonMixin):
-    checkbox: bool
+
+class CheckboxProperty(BaseModel):
     id: str
     type: str
+    checkbox: bool
 
 
-@dataclass
-class UrlProperty(DataClassJsonMixin):
+
+class UrlProperty(BaseModel):
     id: str
     type: str
     url: Optional[str]
 
 
-@dataclass
-class ApiPageProperties(DataClassJsonMixin):
+
+class ApiPageProperties(BaseModel):
     # Required per user's request
     Title: TitleProperty
     Type: SelectProperty
-    Status: StatusProperty | SelectProperty
-    Timeline: DateProperty
+    Status: StatusProperty | SelectProperty # This was already correct
+    Timeline: TimelineProperty
 
     # Other fields (optional)
     Assignee: Optional[PeopleProperty] = None
@@ -242,8 +242,8 @@ class ApiPageProperties(DataClassJsonMixin):
     Journals: Optional[RelationProperty] = None
 
 
-@dataclass
-class ApiPage(DataClassJsonMixin):
+
+class ApiPage(BaseModel):
     id: str
-    icon: Optional[IconProperty]
+    icon: Optional[IconProperty | ExternalEmoji]
     properties: ApiPageProperties

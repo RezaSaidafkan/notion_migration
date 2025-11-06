@@ -3,12 +3,11 @@ from src.constants.literal_definitions import JournalRelations
 from typing import List, Optional, Union, TypeVar, Generic
 from dataclasses_json import DataClassJsonMixin
 from .api_models import (
-    DateProperty,
     PeopleProperty,
     RichTextProperty,
     SelectProperty,
     StatusProperty,
-    IconProperty,
+    IconProperty,ExternalEmoji,TimelineProperty,
     TitleProperty,
 )
 
@@ -35,8 +34,8 @@ class PageProperties(DataClassJsonMixin):
     Assignee: Optional[PeopleProperty]
     Priority: Optional[SelectProperty]
     Urgency: Optional[SelectProperty]
-    Status: Optional[StatusProperty]
-    Timeline: Optional[DateProperty]
+    Status: Optional[StatusProperty | SelectProperty]
+    Timeline: Optional[TimelineProperty]
     Description: Optional[RichTextProperty]
 
     def __repr__(self):
@@ -51,8 +50,8 @@ class PageProperties(DataClassJsonMixin):
 class JournalPageProperties(DataClassJsonMixin):
     Title: TitleProperty
     Type: Optional[SelectProperty]
-    Status: Optional[SelectProperty]  # update in the database, now we have State in source db and Select in journal db
-    Timeline: Optional[DateProperty]
+    Status: Optional[SelectProperty| StatusProperty]  # update in the database, now we have State in source db and Select in journal db
+    Timeline: Optional[TimelineProperty]
     Description: Optional[RichTextProperty]
 
     def __repr__(self):
@@ -129,7 +128,7 @@ class JournalRelation(BaseHierarchyProperty):
 class CommonPage(DataClassJsonMixin):
     Id: PageId
     Properties: Union[PageProperties, JournalPageProperties]
-    Icon: Optional[IconProperty]
+    Icon: Optional[IconProperty | ExternalEmoji]
 
     def __repr__(self):
         icon = self.Icon.__repr__() if self.Icon else ""

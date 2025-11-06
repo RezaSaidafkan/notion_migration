@@ -9,7 +9,7 @@ from src.models.client_models import (
     PageId,
 )
 from src.models.api_models import ApiPage
-from notion_client import AsyncClient as Client
+from notion_client import AsyncClient as Client,    APIResponseError
 from src.repo.repo_page_interface import RepositoryInterface
 from src.config.load_config import GLOBAL_CONFIG
 from abc import abstractmethod
@@ -38,10 +38,13 @@ class NotionRepository(
         super().__init__(notion_token)
 
     async def read_page(self, page_id: PageId, debug: bool = False) -> P:
-        raw_result = await self.notion.pages.retrieve(page_id=page_id.Id)
-        api_page = ApiPage.from_dict(raw_result)
-        page: P = self.convert_client_page(api_page)
-        return page
+        try:
+            raw_result = await self.notion.pages.retrieve(page_id=page_id.Id)
+            api_page = ApiPage(**raw_result)
+            page: P = self.convert_client_page(api_page)
+            return page
+        except APIResponseError as e:
+            raise RuntimeError(e)
 
     @abstractmethod
     def convert_client_page(self, result: ApiPage) -> P:
@@ -66,7 +69,7 @@ class NotionRepository(
                 }
                 resp = await self.notion.databases.query(database_id, **query)
                 results.extend(
-                    [ApiPage.from_dict(result) for result in resp["results"]]
+                    [ApiPage(**result) for result in resp["results"]]
                 )
                 has_more = resp["has_more"]
                 cursor = resp.get("next_cursor")
@@ -79,7 +82,7 @@ class NotionRepository(
                 results=converted_results, has_more=has_more, next_cursor=cursor
             )
         except KeyError as keyError:
-            raise RepositoryError(f"Failed to parse API response to internal model:\n{keyError}")
+            raise RepositoryError(f"Failed to parse API response to internal model:\n{keyError}\n{resp}")
         except Exception as e:
             raise RepositoryError(e)
 
@@ -114,7 +117,7 @@ class NotionRepoPage(NotionRepository[Page]):
             )
             return Page(Id=PageId(Id=result.id), Icon=result.icon, Properties=client_props)
         except Exception as e:
-            raise RepositoryError(f"Failed to parse API response to Page: {e}")
+            raise RepositoryError(f"Failed to parse API response to Page:\n{e}\n{result}")
 
 
 class NotionRepoJournalPage(NotionRepository[JournalPage]):
@@ -137,4 +140,4 @@ class NotionRepoJournalPage(NotionRepository[JournalPage]):
                 Id=PageId(Id=result.id), Icon=result.icon, Properties=client_props
             )
         except Exception as e:
-            raise RepositoryError(f"Failed to parse API response to JournalPage: {e}")
+            raise RepositoryError(f"Failed to parse API response to JournalPage:\n{e}\n{result}")

@@ -8,6 +8,7 @@ from src.config.load_config import GLOBAL_CONFIG
 import pprint
 from typing import Union
 from src.models.client_models import Page, JournalPage, PageRelation, JournalRelation
+from src.helpers.utils import count_leaves
 
 PageType = Union[Page, JournalPage]
 DatabaseType = Union[Page, JournalPage]
@@ -38,6 +39,7 @@ class Runner:
             journal_relation=journal_relation,
         )
         pprint.pprint(root_page)
+        pprint.pprint(count_leaves(root_page))
 
 
 async def main():
