@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Generic
+from typing import List, Dict, Any, Generic, Coroutine
 from src.models.client_models import (
     Page,
     JournalPage,
@@ -13,10 +13,24 @@ from notion_client import AsyncClient as Client,    APIResponseError
 from src.repo.repo_page_interface import RepositoryInterface
 from src.config.load_config import GLOBAL_CONFIG
 from abc import abstractmethod
+import asyncio
+import logging
 
 
 class RepositoryError(Exception):
     pass
+
+
+# --- Global Rate Limiting ---
+# A single semaphore for all repository instances to ensure we don't exceed Notion's API rate limit.
+SEMAPHORE = asyncio.Semaphore(GLOBAL_CONFIG.SEMAPHORE_LIMIT)
+
+async def _rate_limited(coro: Coroutine) -> Any:
+    """Ensures all API calls are rate-limited."""
+    async with SEMAPHORE:
+        # Spacing out requests to stay under Notion's ~3 RPS limit.
+        await asyncio.sleep(0.35)
+        return await coro
 
 
 class ClientSingleton:
@@ -28,7 +42,7 @@ class ClientSingleton:
         return cls._instance
 
     def __init__(self, notion_token: str):
-        self.notion = Client(auth=notion_token)
+        self.notion = Client(auth=notion_token,  log_level=logging.DEBUG)
 
 
 class NotionRepository(
@@ -39,7 +53,7 @@ class NotionRepository(
 
     async def read_page(self, page_id: PageId, debug: bool = False) -> P:
         try:
-            raw_result = await self.notion.pages.retrieve(page_id=page_id.Id)
+            raw_result = await _rate_limited(self.notion.pages.retrieve(page_id=page_id.Id))
             api_page = ApiPage(**raw_result)
             page: P = self.convert_client_page(api_page)
             return page
@@ -52,34 +66,28 @@ class NotionRepository(
 
     async def query_database(
         self,
-        database_id: str,
+        data_source_id: str,
         page_size: int,
         filter: Dict[str, Any],
         cursor: str | None = None,
         debug: bool = GLOBAL_CONFIG.DEBUG,
     ) -> PaginationResult[P]:
-        results = []
-        has_more = True
         try:
-            while has_more:
-                query = {
-                    "start_cursor": cursor,
-                    "filter": filter or {},
-                    "page_size": page_size,
-                }
-                resp = await self.notion.databases.query(database_id, **query)
-                results.extend(
-                    [ApiPage(**result) for result in resp["results"]]
-                )
-                has_more = resp["has_more"]
-                cursor = resp.get("next_cursor")
-                if debug:
-                    print(f"Fetched {len(results)} pages so far...")
+            query = {
+                "start_cursor": cursor,
+                "filter": filter or {},
+                "page_size": page_size,
+            }
+            resp = await _rate_limited(self.notion.data_sources.query(data_source_id, **query))
+
+            results = [ApiPage(**result) for result in resp["results"]]
             converted_results: List[P] = [
                 self.convert_client_page(apiPage) for apiPage in results
             ]
             return PaginationResult[P](
-                results=converted_results, has_more=has_more, next_cursor=cursor
+                results=converted_results,
+                has_more=resp["has_more"],
+                next_cursor=resp.get("next_cursor"),
             )
         except KeyError as keyError:
             raise RepositoryError(f"Failed to parse API response to internal model:\n{keyError}\n{resp}")

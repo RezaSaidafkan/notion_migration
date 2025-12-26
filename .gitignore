@@ -2,7 +2,7 @@
 .env.*
 
 # Dev environment files
-.dev
+src/dev
 
 # Byte-compiled / cache
 *.pyc

@@ -51,22 +51,23 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         database_info: DatabaseInfo,
         database_type: DB,
         relation: Union[SourceRelations, JournalRelations],
+        semaphore: asyncio.Semaphore,
         tg: asyncio.TaskGroup,
     ) -> Task[List[P]]:
         
         return tg.create_task(
-            _timed(
-                self.query_database(
-                    database_info=database_info,
-                    database_type=database_type,
-                    filter={
-                        "property": relation.value,
-                        "relation": {"contains": page.Id.Id},
-                    },
+                _timed(
+                    self.query_database(
+                        database_info=database_info,
+                        database_type=database_type,
+                        filter={
+                            "property": relation.value,
+                            "relation": {"contains": page.Id.Id},
+                        },
+                    ),
+                    page,
+                    "query_database:sub_pages",
                 ),
-                page,
-                "query_database:sub_pages",
-            ),
         )
     
     def get_source_pages(
@@ -74,6 +75,7 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         page: P,
         database_info: DatabaseInfo,
         relation: SourceRelations,
+        semaphore: asyncio.Semaphore,
         tg: asyncio.TaskGroup) -> Task[List[P]]:
         return cast(
                 Task[List[P]], 
@@ -82,6 +84,7 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
                     database_info=database_info,
                     database_type=cast(DB, Page),
                     relation=relation,
+                    semaphore=semaphore,
                     tg=tg
                     )
                 )
@@ -90,6 +93,7 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         page: P,
         database_info: DatabaseInfo,
         relation: JournalRelations,
+        semaphore: asyncio.Semaphore,
         tg: asyncio.TaskGroup) -> Task[List[P]]:
         return cast(
                 Task[List[P]],
@@ -98,6 +102,7 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
                     database_info=database_info,
                     database_type=cast(DB, JournalPage),
                     relation=relation,
+                    semaphore=semaphore,
                     tg=tg
                     )
                 )
@@ -122,7 +127,7 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         while not exhausted:
             # The cast is safe because of the if/elif block above.
             pagination = await repo.query_database(
-                database_id=database_info.DatabaseId,
+                data_source_id=database_info.DatabaseId,
                 page_size=GLOBAL_CONFIG.PAGE_SIZE,
                 filter=filter,
                 cursor=cursor,
@@ -164,8 +169,8 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
                     journal_relation,
                     level,
                     collected,
-                    tg,
                     semaphore,
+                    tg,
                 )
             )
 
@@ -179,8 +184,8 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         journal_relation: JournalRelations,
         level: int,
         collected: list[P],
-        tg: asyncio.TaskGroup,
         semaphore: asyncio.Semaphore,
+        tg: asyncio.TaskGroup,
     ):
         # create the coroutines and run them concurrently with timing
 
@@ -188,6 +193,7 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         page=page,
         database_info=source_database_info,
         relation=SourceRelations.ANCESTORS,
+        semaphore=semaphore,
         tg=tg,
         ) # type: ignore
         
@@ -195,6 +201,7 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
             page=page,
             database_info=journal_database_info, 
             relation=journal_relation, 
+            semaphore=semaphore,
             tg=tg
         ) # type: ignore
 
@@ -209,29 +216,19 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
             page.Relations.Journals = journal_database_pages
             for journ_page in journal_database_pages:
                 tg.create_task(
-                    _timed(
-                        _limited(
-                            semaphore,
                             self.process_journal_recursive(
                                 journ_page,
                                 journal_database_info,
                                 journal_relation,
+                                semaphore,
                                 tg,
-                                semaphore
-                            ),
                         ),
-                        journ_page,
-                        "process_journal_recursive"
-                    )
                 )
 
         if sub_pages is not None:
             page.Relations.Descendants = sub_pages
             for sub_page in sub_pages:
                 tg.create_task(
-                    _timed(
-                        _limited(
-                            semaphore,
                             self.process_source_recursive(
                                 sub_page,
                                 source_database_info,
@@ -239,13 +236,9 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
                                 journal_relation,
                                 level + 1,
                                 collected,
-                                tg,
                                 semaphore,
-                            ),
+                                tg,
                         ),
-                        sub_page,
-                        "process_source_recursive",
-                    )
                 )
 
         if level == 1:
@@ -257,8 +250,8 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         page: P,
         journal_database_info: DatabaseInfo,
         journal_relation: JournalRelations,
-        tg: asyncio.TaskGroup,
         semaphore: asyncio.Semaphore,
+        tg: asyncio.TaskGroup,
     ):
         """
         This function processes a journal page recursively, fetching its sub-journal pages.
@@ -268,6 +261,7 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
             page=page,
             database_info=journal_database_info,
             relation=JournalRelations.ANCESTORS,
+            semaphore=semaphore,
             tg=tg
         )
 
@@ -278,20 +272,13 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
             )
             for journ_page in sub_journal_pages:
                 tg.create_task(
-                    _timed(
-                        _limited(
-                            semaphore,
                             self.process_journal_recursive(
                                 journ_page,
                                 journal_database_info,
                                 journal_relation,
-                                tg,
                                 semaphore,
+                                tg,
                             ),
-                        ),
-                        journ_page,
-                        "process_journal_recursive",
-                    )
                 )
 
     async def create_or_update_page(self, page: P) -> bool:
@@ -338,11 +325,6 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         )
 
 
-async def _limited(semaphore: asyncio.Semaphore, coro):
-    async with semaphore:
-        return await coro
-
-
 async def _timed(coro, page: P, label: str, debug: bool = GLOBAL_CONFIG.DEBUG) -> Any:
     if debug:
         t0 = perf_counter()
@@ -354,4 +336,3 @@ async def _timed(coro, page: P, label: str, debug: bool = GLOBAL_CONFIG.DEBUG) -
     else:
         res = await coro
     return res
-
