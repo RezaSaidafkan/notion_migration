@@ -23,6 +23,8 @@ from asyncio import Task
 from time import perf_counter
 from src.config.load_config import GLOBAL_CONFIG
 
+from aiolimiter import AsyncLimiter
+
 
 class ServicePage(ServicePageInterface[K, P, DB, R]):
     """
@@ -53,6 +55,7 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         relation: Union[SourceRelations, JournalRelations],
         semaphore: asyncio.Semaphore,
         tg: asyncio.TaskGroup,
+        limiter: AsyncLimiter,
     ) -> Task[List[P]]:
         
         return tg.create_task(
@@ -64,11 +67,12 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
                             "property": relation.value,
                             "relation": {"contains": page.Id.Id},
                         },
+                        limiter=limiter,
                     ),
                     page,
                     "query_database:sub_pages",
                 ),
-        )
+            )
     
     def get_source_pages(
         self,
@@ -76,7 +80,8 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         database_info: DatabaseInfo,
         relation: SourceRelations,
         semaphore: asyncio.Semaphore,
-        tg: asyncio.TaskGroup) -> Task[List[P]]:
+        tg: asyncio.TaskGroup,
+        limiter: AsyncLimiter) -> Task[List[P]]:
         return cast(
                 Task[List[P]], 
                 self.get_pages(
@@ -85,7 +90,8 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
                     database_type=cast(DB, Page),
                     relation=relation,
                     semaphore=semaphore,
-                    tg=tg
+                    tg=tg,
+                    limiter=limiter
                     )
                 )
     
@@ -94,7 +100,8 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         database_info: DatabaseInfo,
         relation: JournalRelations,
         semaphore: asyncio.Semaphore,
-        tg: asyncio.TaskGroup) -> Task[List[P]]:
+        tg: asyncio.TaskGroup,
+        limiter: AsyncLimiter) -> Task[List[P]]:
         return cast(
                 Task[List[P]],
                 self.get_pages(
@@ -103,13 +110,14 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
                     database_type=cast(DB, JournalPage),
                     relation=relation,
                     semaphore=semaphore,
-                    tg=tg
+                    tg=tg,
+                    limiter=limiter
                     )
                 )
         
 
     async def query_database(
-        self, database_info: DatabaseInfo, database_type: DB, filter: dict
+        self, database_info: DatabaseInfo, database_type: DB, filter: dict, limiter: AsyncLimiter = None
     ) -> List[P]:
         repo: NotionRepository
         if database_type is Page:
@@ -126,23 +134,27 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
 
         while not exhausted:
             # The cast is safe because of the if/elif block above.
-            pagination = await repo.query_database(
-                data_source_id=database_info.DatabaseId,
-                page_size=GLOBAL_CONFIG.PAGE_SIZE,
-                filter=filter,
-                cursor=cursor,
-            )
+            if limiter:
+                async with limiter:
+                    pagination = await repo.query_database(
+                        data_source_id=database_info.DatabaseId,
+                        page_size=GLOBAL_CONFIG.PAGE_SIZE,
+                        filter=filter,
+                        cursor=cursor,
+                    )
+            else:
+                pagination = await repo.query_database(
+                    data_source_id=database_info.DatabaseId,
+                    page_size=GLOBAL_CONFIG.PAGE_SIZE,
+                    filter=filter,
+                    cursor=cursor,
+                )
 
             pages.extend(cast(List[P], pagination.results))
             cursor = pagination.next_cursor
             exhausted = not pagination.has_more
         return pages
 
-    async def query_database2(
-        self, database_info: DatabaseInfo, database_type: DB, filter: dict
-    ) -> List[P]:
-        raise RuntimeError
-        
     async def build_page_hierarchy(
         self,
         root_page: P,
@@ -160,6 +172,7 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         collected: list[P] = []
 
         semaphore = asyncio.Semaphore(GLOBAL_CONFIG.SEMAPHORE_LIMIT)
+        limiter = AsyncLimiter(3, 1)
         async with asyncio.TaskGroup() as tg:
             tg.create_task(
                 self.process_source_recursive(
@@ -171,6 +184,7 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
                     collected,
                     semaphore,
                     tg,
+                    limiter,
                 )
             )
 
@@ -186,6 +200,7 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         collected: list[P],
         semaphore: asyncio.Semaphore,
         tg: asyncio.TaskGroup,
+        limiter: AsyncLimiter,
     ):
         # create the coroutines and run them concurrently with timing
 
@@ -195,6 +210,7 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         relation=SourceRelations.ANCESTORS,
         semaphore=semaphore,
         tg=tg,
+        limiter=limiter,
         ) # type: ignore
         
         journal_database_tasks: Task[List[P]] = self.get_journal_pages(
@@ -202,7 +218,8 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
             database_info=journal_database_info, 
             relation=journal_relation, 
             semaphore=semaphore,
-            tg=tg
+            tg=tg,
+            limiter=limiter,
         ) # type: ignore
 
             
@@ -222,6 +239,7 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
                                 journal_relation,
                                 semaphore,
                                 tg,
+                                limiter,
                         ),
                 )
 
@@ -238,6 +256,7 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
                                 collected,
                                 semaphore,
                                 tg,
+                                limiter,
                         ),
                 )
 
@@ -252,6 +271,7 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         journal_relation: JournalRelations,
         semaphore: asyncio.Semaphore,
         tg: asyncio.TaskGroup,
+        limiter: AsyncLimiter,
     ):
         """
         This function processes a journal page recursively, fetching its sub-journal pages.
@@ -262,7 +282,8 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
             database_info=journal_database_info,
             relation=JournalRelations.ANCESTORS,
             semaphore=semaphore,
-            tg=tg
+            tg=tg,
+            limiter=limiter,
         )
 
         if sub_journal_pages:
@@ -278,6 +299,7 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
                                 journal_relation,
                                 semaphore,
                                 tg,
+                                limiter,
                             ),
                 )
 
