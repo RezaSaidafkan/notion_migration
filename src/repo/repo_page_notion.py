@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Generic, Coroutine
+from typing import List, Dict, Any, Generic
 from src.models.client_models import (
     Page,
     JournalPage,
@@ -13,8 +13,8 @@ from notion_client import AsyncClient as Client,    APIResponseError
 from src.repo.repo_page_interface import RepositoryInterface
 from src.config.load_config import GLOBAL_CONFIG
 from abc import abstractmethod
-import asyncio
 import logging
+from src.utils.rate_limiter import rate_limited
 
 
 class RepositoryError(Exception):
@@ -23,14 +23,6 @@ class RepositoryError(Exception):
 
 # --- Global Rate Limiting ---
 # A single semaphore for all repository instances to ensure we don't exceed Notion's API rate limit.
-SEMAPHORE = asyncio.Semaphore(GLOBAL_CONFIG.SEMAPHORE_LIMIT)
-
-async def _rate_limited(coro: Coroutine) -> Any:
-    """Ensures all API calls are rate-limited."""
-    async with SEMAPHORE:
-        # Spacing out requests to stay under Notion's ~3 RPS limit.
-        await asyncio.sleep(0.35)
-        return await coro
 
 
 class ClientSingleton:
@@ -42,7 +34,7 @@ class ClientSingleton:
         return cls._instance
 
     def __init__(self, notion_token: str):
-        self.notion = Client(auth=notion_token,  log_level=logging.DEBUG)
+        self.notion = Client(auth=notion_token, log_level=logging.DEBUG)
 
 
 class NotionRepository(
@@ -53,7 +45,7 @@ class NotionRepository(
 
     async def read_page(self, page_id: PageId, debug: bool = False) -> P:
         try:
-            raw_result = await _rate_limited(self.notion.pages.retrieve(page_id=page_id.Id))
+            raw_result = await self.notion.pages.retrieve(page_id=page_id.Id)
             api_page = ApiPage(**raw_result)
             page: P = self.convert_client_page(api_page)
             return page
@@ -64,6 +56,7 @@ class NotionRepository(
     def convert_client_page(self, result: ApiPage) -> P:
         pass
 
+    @rate_limited(max_rate=3, time_period=1)
     async def query_database(
         self,
         data_source_id: str,
@@ -78,7 +71,7 @@ class NotionRepository(
                 "filter": filter or {},
                 "page_size": page_size,
             }
-            resp = await _rate_limited(self.notion.data_sources.query(data_source_id, **query))
+            resp = await self.notion.data_sources.query(data_source_id, **query)
 
             results = [ApiPage(**result) for result in resp["results"]]
             converted_results: List[P] = [

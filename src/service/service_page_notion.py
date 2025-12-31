@@ -1,4 +1,4 @@
-from typing import List, Union, Any, cast
+from typing import List, Union, cast
 import pprint
 from src.service.service_page_interface import ServicePageInterface
 from src.repo.repo_page_notion import (
@@ -20,10 +20,8 @@ from src.constants.literal_definitions import (
 )
 import asyncio
 from asyncio import Task
-from time import perf_counter
 from src.config.load_config import GLOBAL_CONFIG
-
-from aiolimiter import AsyncLimiter
+from src.utils.timer import _timed
 
 
 class ServicePage(ServicePageInterface[K, P, DB, R]):
@@ -53,35 +51,29 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         database_info: DatabaseInfo,
         database_type: DB,
         relation: Union[SourceRelations, JournalRelations],
-        semaphore: asyncio.Semaphore,
         tg: asyncio.TaskGroup,
-        limiter: AsyncLimiter,
     ) -> Task[List[P]]:
         
         return tg.create_task(
                 _timed(
                     self.query_database(
-                        database_info=database_info,
-                        database_type=database_type,
-                        filter={
-                            "property": relation.value,
-                            "relation": {"contains": page.Id.Id},
-                        },
-                        limiter=limiter,
-                    ),
+                    database_info=database_info,
+                    database_type=database_type,
+                    filter={
+                        "property": relation.value,
+                        "relation": {"contains": page.Id.Id},
+                    }),
                     page,
                     "query_database:sub_pages",
                 ),
-            )
-    
+        )
+
     def get_source_pages(
         self,
         page: P,
         database_info: DatabaseInfo,
         relation: SourceRelations,
-        semaphore: asyncio.Semaphore,
-        tg: asyncio.TaskGroup,
-        limiter: AsyncLimiter) -> Task[List[P]]:
+        tg: asyncio.TaskGroup) -> Task[List[P]]:
         return cast(
                 Task[List[P]], 
                 self.get_pages(
@@ -89,9 +81,7 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
                     database_info=database_info,
                     database_type=cast(DB, Page),
                     relation=relation,
-                    semaphore=semaphore,
                     tg=tg,
-                    limiter=limiter
                     )
                 )
     
@@ -99,9 +89,7 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         page: P,
         database_info: DatabaseInfo,
         relation: JournalRelations,
-        semaphore: asyncio.Semaphore,
-        tg: asyncio.TaskGroup,
-        limiter: AsyncLimiter) -> Task[List[P]]:
+        tg: asyncio.TaskGroup) -> Task[List[P]]:
         return cast(
                 Task[List[P]],
                 self.get_pages(
@@ -109,16 +97,12 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
                     database_info=database_info,
                     database_type=cast(DB, JournalPage),
                     relation=relation,
-                    semaphore=semaphore,
                     tg=tg,
-                    limiter=limiter
                     )
                 )
         
-
     async def query_database(
-        self, database_info: DatabaseInfo, database_type: DB, filter: dict, limiter: AsyncLimiter = None
-    ) -> List[P]:
+        self, database_info: DatabaseInfo, database_type: DB, filter: dict) -> List[P]:
         repo: NotionRepository
         if database_type is Page:
             repo = self._repo_source
@@ -133,23 +117,12 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         pages: List[P] = []
 
         while not exhausted:
-            # The cast is safe because of the if/elif block above.
-            if limiter:
-                async with limiter:
-                    pagination = await repo.query_database(
-                        data_source_id=database_info.DatabaseId,
-                        page_size=GLOBAL_CONFIG.PAGE_SIZE,
-                        filter=filter,
-                        cursor=cursor,
-                    )
-            else:
-                pagination = await repo.query_database(
-                    data_source_id=database_info.DatabaseId,
-                    page_size=GLOBAL_CONFIG.PAGE_SIZE,
-                    filter=filter,
-                    cursor=cursor,
-                )
-
+            pagination = await repo.query_database(
+                data_source_id=database_info.DatabaseId,
+                page_size=GLOBAL_CONFIG.PAGE_SIZE,
+                filter=filter,
+                cursor=cursor,
+            )
             pages.extend(cast(List[P], pagination.results))
             cursor = pagination.next_cursor
             exhausted = not pagination.has_more
@@ -162,7 +135,7 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         journal_database: DatabaseInfo,
         journal_relation: JournalRelations,
         level: int = 0,
-    ) -> List[P]:
+        ) -> List[P]:
         """
         Return pages whose 'Ancestor' relation contains the given parent.
 
@@ -171,20 +144,21 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         """
         collected: list[P] = []
 
-        semaphore = asyncio.Semaphore(GLOBAL_CONFIG.SEMAPHORE_LIMIT)
-        limiter = AsyncLimiter(3, 1)
         async with asyncio.TaskGroup() as tg:
             tg.create_task(
-                self.process_source_recursive(
-                    root_page,
-                    source_database,
-                    journal_database,
-                    journal_relation,
-                    level,
-                    collected,
-                    semaphore,
-                    tg,
-                    limiter,
+                _timed(
+                    self.process_source_recursive(
+                        root_page,
+                        source_database,
+                        journal_database,
+                        journal_relation,
+                        level,
+                        collected,
+                        tg,
+                    )
+                ,
+                root_page,
+                'root_page'
                 )
             )
 
@@ -198,28 +172,22 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         journal_relation: JournalRelations,
         level: int,
         collected: list[P],
-        semaphore: asyncio.Semaphore,
         tg: asyncio.TaskGroup,
-        limiter: AsyncLimiter,
-    ):
-        # create the coroutines and run them concurrently with timing
+        ):
+        # create the coroutines and run them concurrently with timing & rate limited
 
         sub_pages_tasks: Task[List[P]] = self.get_source_pages(
         page=page,
         database_info=source_database_info,
         relation=SourceRelations.ANCESTORS,
-        semaphore=semaphore,
         tg=tg,
-        limiter=limiter,
         ) # type: ignore
         
         journal_database_tasks: Task[List[P]] = self.get_journal_pages(
             page=page,
             database_info=journal_database_info, 
             relation=journal_relation, 
-            semaphore=semaphore,
             tg=tg,
-            limiter=limiter,
         ) # type: ignore
 
             
@@ -233,31 +201,27 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
             page.Relations.Journals = journal_database_pages
             for journ_page in journal_database_pages:
                 tg.create_task(
-                            self.process_journal_recursive(
-                                journ_page,
-                                journal_database_info,
-                                journal_relation,
-                                semaphore,
-                                tg,
-                                limiter,
-                        ),
+                    self.process_journal_recursive(
+                        journ_page,
+                        journal_database_info,
+                        journal_relation,
+                        tg,
+                    ),
                 )
 
         if sub_pages is not None:
             page.Relations.Descendants = sub_pages
             for sub_page in sub_pages:
                 tg.create_task(
-                            self.process_source_recursive(
-                                sub_page,
-                                source_database_info,
-                                journal_database_info,
-                                journal_relation,
-                                level + 1,
-                                collected,
-                                semaphore,
-                                tg,
-                                limiter,
-                        ),
+                    self.process_source_recursive(
+                        sub_page,
+                        source_database_info,
+                        journal_database_info,
+                        journal_relation,
+                        level + 1,
+                        collected,
+                        tg,
+                    ),
                 )
 
         if level == 1:
@@ -269,9 +233,7 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         page: P,
         journal_database_info: DatabaseInfo,
         journal_relation: JournalRelations,
-        semaphore: asyncio.Semaphore,
         tg: asyncio.TaskGroup,
-        limiter: AsyncLimiter,
     ):
         """
         This function processes a journal page recursively, fetching its sub-journal pages.
@@ -281,9 +243,7 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
             page=page,
             database_info=journal_database_info,
             relation=JournalRelations.ANCESTORS,
-            semaphore=semaphore,
             tg=tg,
-            limiter=limiter,
         )
 
         if sub_journal_pages:
@@ -293,14 +253,12 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
             )
             for journ_page in sub_journal_pages:
                 tg.create_task(
-                            self.process_journal_recursive(
-                                journ_page,
-                                journal_database_info,
-                                journal_relation,
-                                semaphore,
-                                tg,
-                                limiter,
-                            ),
+                    self.process_journal_recursive(
+                        journ_page,
+                        journal_database_info,
+                        journal_relation,
+                        tg,
+                    ),
                 )
 
     async def create_or_update_page(self, page: P) -> bool:
@@ -345,16 +303,3 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         raise NotImplementedError(
             "This method should be implemented in the service layer."
         )
-
-
-async def _timed(coro, page: P, label: str, debug: bool = GLOBAL_CONFIG.DEBUG) -> Any:
-    if debug:
-        t0 = perf_counter()
-        res = await coro
-        t1 = perf_counter()
-        print(
-            f"[TIMING] {label} page={page.Id.Id.replace('-', ''), page.Properties.Title.title} took={t1 - t0:.3f}s"
-        )
-    else:
-        res = await coro
-    return res
