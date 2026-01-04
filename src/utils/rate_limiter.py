@@ -1,4 +1,4 @@
-from typing import Any, Awaitable, Any, Dict, Callable
+from typing import Any, Any, Dict, Callable
 from aiolimiter import AsyncLimiter
 from functools import wraps
 
