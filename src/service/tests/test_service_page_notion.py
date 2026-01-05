@@ -3,8 +3,14 @@ from unittest.mock import AsyncMock, call, patch
 
 from src.constants.literal_definitions import DatabaseInfo, JournalRelations
 from src.models.api_models import TitleItem, TitleProperty, TitleText
-from src.models.client_models import (JournalPage, JournalPageProperties, Page,
-                                      PageId, PageProperties, PaginationResult)
+from src.models.client_models import (
+    JournalPage,
+    JournalPageProperties,
+    Page,
+    PageId,
+    PageProperties,
+    PaginationResult,
+)
 from src.service.service_page_notion import ServicePage
 
 

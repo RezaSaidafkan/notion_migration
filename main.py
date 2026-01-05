@@ -7,8 +7,13 @@ import src.service.service_page_notion as spn
 from src.config.load_config import GLOBAL_CONFIG
 from src.constants.literal_definitions import DatabaseInfo, JournalRelations
 from src.helpers.utils import count_leaves
-from src.models.client_models import (JournalPage, JournalRelation, Page,
-                                      PageId, PageRelation)
+from src.models.client_models import (
+    JournalPage,
+    JournalRelation,
+    Page,
+    PageId,
+    PageRelation,
+)
 from src.repo.repo_page_notion import NotionRepoJournalPage, NotionRepoPage
 
 PageType = Union[Page, JournalPage]

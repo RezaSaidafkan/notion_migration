@@ -24,6 +24,18 @@ dependencies = [
 [tool.poetry]
 packages = [{include = "notion_migration", from = "src"}]
 
+[tool.ruff.lint]
+# Enable Pylint (PL), Docstrings (D), and Import Sorting (I)
+select = [
+    "E", "F",     # Default Flake8 rules
+    "PL",         # Pylint-inspired rules (covers R0903, C0103, etc.)
+    "D",          # pydocstyle (covers C0114, C0115, C0116)
+    "I",          # isort (covers C0411 import order)
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google" # Or "numpy" / "pep257"
+
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"

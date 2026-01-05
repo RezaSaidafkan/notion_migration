@@ -5,9 +5,16 @@ from dataclasses_json import DataClassJsonMixin
 
 from src.constants.literal_definitions import JournalRelations
 
-from .api_models import (ExternalEmoji, IconProperty, PeopleProperty,
-                         RichTextProperty, SelectProperty, StatusProperty,
-                         TimelineProperty, TitleProperty)
+from .api_models import (
+    ExternalEmoji,
+    IconProperty,
+    PeopleProperty,
+    RichTextProperty,
+    SelectProperty,
+    StatusProperty,
+    TimelineProperty,
+    TitleProperty,
+)
 
 # Define P as Page types
 P = TypeVar("P", bound=Union["Page", "JournalPage"])

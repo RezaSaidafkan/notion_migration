@@ -4,19 +4,32 @@ from asyncio import Task
 from typing import List, Union, cast
 
 from src.config.load_config import GLOBAL_CONFIG
-from src.constants.literal_definitions import (DatabaseInfo, JournalRelations,
-                                               SourceRelations)
-from src.models.client_models import (DB, JournalPage, JournalRelation, K, P,
-                                      Page, PageRelation, R)
-from src.repo.repo_page_notion import (NotionRepoJournalPage, NotionRepoPage,
-                                       NotionRepository)
+from src.constants.literal_definitions import (
+    DatabaseInfo,
+    JournalRelations,
+    SourceRelations,
+)
+from src.models.client_models import (
+    DB,
+    JournalPage,
+    JournalRelation,
+    K,
+    P,
+    Page,
+    PageRelation,
+    R,
+)
+from src.repo.repo_page_notion import (
+    NotionRepoJournalPage,
+    NotionRepoPage,
+    NotionRepository,
+)
 from src.service.service_page_interface import ServicePageInterface
 from src.utils.timer import _timed
 
 
 class ServicePage(ServicePageInterface[K, P, DB, R]):
-    """
-    Service layer for page-related domain logic.
+    """Service layer for page-related domain logic.
 
     Keep schema- and business-logic here. The repository should expose
     generic persistence queries (like `query_database`) without hardcoding
@@ -136,8 +149,7 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         journal_relation: JournalRelations,
         level: int = 0,
     ) -> List[P]:
-        """
-        Return pages whose 'Ancestor' relation contains the given parent.
+        """Return pages whose 'Ancestor' relation contains the given parent.
 
         This method contains the schema knowledge ('Ancestor' relation) and
         delegates to the repository's generic `query_database` method.
@@ -232,8 +244,7 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         journal_relation: JournalRelations,
         tg: asyncio.TaskGroup,
     ):
-        """
-        This function processes a journal page recursively, fetching its sub-journal pages.
+        """This function processes a journal page recursively, fetching its sub-journal pages.
         Assigns the found sub-journal pages to the Relations.Descendants / Relations.Ancestors attributes of the page.
         """
         sub_journal_pages: List[P] = await self.get_journal_pages(

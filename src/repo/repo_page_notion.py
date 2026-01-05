@@ -7,9 +7,15 @@ from notion_client import AsyncClient as Client
 
 from src.config.load_config import GLOBAL_CONFIG
 from src.models.api_models import ApiPage
-from src.models.client_models import (JournalPage, JournalPageProperties, P,
-                                      Page, PageId, PageProperties,
-                                      PaginationResult)
+from src.models.client_models import (
+    JournalPage,
+    JournalPageProperties,
+    P,
+    Page,
+    PageId,
+    PageProperties,
+    PaginationResult,
+)
 from src.repo.repo_page_interface import RepositoryInterface
 from src.utils.rate_limiter import rate_limited
 
