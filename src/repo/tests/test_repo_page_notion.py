@@ -1,8 +1,10 @@
 import unittest
-from unittest.mock import patch, AsyncMock, MagicMock
-from src.repo.repo_page_notion import NotionRepoPage, NotionRepoJournalPage
-from src.models.client_models import Page, JournalPage, PageId, PageProperties, JournalPageProperties, PaginationResult
+from unittest.mock import AsyncMock, MagicMock, patch
+
 from src.models.api_models import ApiPage
+from src.models.client_models import (JournalPage, JournalPageProperties, Page,
+                                      PageId, PageProperties, PaginationResult)
+from src.repo.repo_page_notion import NotionRepoJournalPage, NotionRepoPage
 
 
 def create_mock_api_page(page_id: str, title: str) -> dict:
@@ -19,22 +21,32 @@ def create_mock_api_page(page_id: str, title: str) -> dict:
             "Title": {
                 "id": "title",
                 "type": "title",
-                "title": [{"type": "text", "text": {"content": title, "link": None}, "plain_text": title}]
+                "title": [
+                    {
+                        "type": "text",
+                        "text": {"content": title, "link": None},
+                        "plain_text": title,
+                    }
+                ],
             },
             "Type": {
                 "id": "type_id",
                 "type": "select",
-                "select": {"id": "select_id", "name": "Task", "color": "blue"}
+                "select": {"id": "select_id", "name": "Task", "color": "blue"},
             },
             "Status": {
                 "id": "status_id",
                 "type": "status",
-                "status": {"id": "status_opt_id", "name": "In Progress", "color": "yellow"}
+                "status": {
+                    "id": "status_opt_id",
+                    "name": "In Progress",
+                    "color": "yellow",
+                },
             },
             "Timeline": {
                 "id": "date_id",
                 "type": "date",
-                "date": {"start": "2023-01-01", "end": None, "time_zone": None}
+                "date": {"start": "2023-01-01", "end": None, "time_zone": None},
             },
             "Assignee": None,
             "Priority": None,
@@ -43,7 +55,7 @@ def create_mock_api_page(page_id: str, title: str) -> dict:
             "Ancestors": None,
             "Descendants": None,
             "Journals": None,
-        }
+        },
     }
 
 
@@ -52,10 +64,11 @@ class TestNotionRepoPage(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         # Reset singleton instance to ensure clean state for each test class
         from src.repo.repo_page_notion import ClientSingleton
+
         ClientSingleton._instance = None
 
         # Manually start the patcher
-        self.client_patcher = patch('src.repo.repo_page_notion.Client')
+        self.client_patcher = patch("src.repo.repo_page_notion.Client")
         mock_notion_client_class = self.client_patcher.start()
 
         self.mock_notion_client = AsyncMock()
@@ -79,7 +92,7 @@ class TestNotionRepoPage(unittest.IsolatedAsyncioTestCase):
         page_id = "test-page-id"
         raw_page_dict = create_mock_api_page(page_id, "Test Page")
         api_page = ApiPage.model_validate(raw_page_dict)
-        
+
         # Act
         client_page = self.repo.convert_client_page(api_page)
 
@@ -87,7 +100,9 @@ class TestNotionRepoPage(unittest.IsolatedAsyncioTestCase):
         self.assertIsInstance(client_page, Page)
         self.assertEqual(client_page.Id.Id, page_id)
         self.assertIsInstance(client_page.Properties, PageProperties)
-        self.assertEqual(client_page.Properties.Title.title[0].text.content, "Test Page")
+        self.assertEqual(
+            client_page.Properties.Title.title[0].text.content, "Test Page"
+        )
         self.assertEqual(client_page.Properties.Type.select.name, "Task")
 
     async def test_query_database_single_page(self):
@@ -108,7 +123,7 @@ class TestNotionRepoPage(unittest.IsolatedAsyncioTestCase):
             data_source_id=db_id,
             page_size=page_size,
             filter_query=filter_dict,
-            cursor=None
+            cursor=None,
         )
 
         # Assert
@@ -123,12 +138,14 @@ class TestNotionRepoPage(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.results[0].Id.Id, "page1")
 
     async def test_query_database_paginated(self):
-        ''' This test simulates pagination while the current implementation fetches all pages in a loop. '''
-        
+        """This test simulates pagination while the current implementation fetches all pages in a loop."""
+
         # Arrange
         mock_response_1 = {
-            "results": [create_mock_api_page("page1", "Page One"),
-                        create_mock_api_page("page2", "Page Two"), ],
+            "results": [
+                create_mock_api_page("page1", "Page One"),
+                create_mock_api_page("page2", "Page Two"),
+            ],
             "has_more": True,
             "next_cursor": "cursor123",
         }
@@ -137,8 +154,11 @@ class TestNotionRepoPage(unittest.IsolatedAsyncioTestCase):
             "has_more": False,
             "next_cursor": None,
         }
-        
-        self.mock_notion_client.data_sources.query.side_effect = [mock_response_1, mock_response_2]
+
+        self.mock_notion_client.data_sources.query.side_effect = [
+            mock_response_1,
+            mock_response_2,
+        ]
 
         db_id = "test-db-id"
         page_size = 2
@@ -146,15 +166,14 @@ class TestNotionRepoPage(unittest.IsolatedAsyncioTestCase):
         # The repo's query_database loops until has_more is false.
         # We expect two calls to the mock.
         result = await self.repo.query_database(
-            data_source_id=db_id,
-            page_size=page_size,
-            filter_query={},
-            cursor=None
+            data_source_id=db_id, page_size=page_size, filter_query={}, cursor=None
         )
 
         self.assertEqual(self.mock_notion_client.data_sources.query.call_count, 1)
-        self.assertTrue(result.has_more) # The final result from the repo method
-        self.assertIsNotNone(result.next_cursor) # The final result from the repo method
+        self.assertTrue(result.has_more)  # The final result from the repo method
+        self.assertIsNotNone(
+            result.next_cursor
+        )  # The final result from the repo method
         self.assertEqual(len(result.results), 2)
         self.assertEqual(result.results[0].Id.Id, "page1")
         self.assertEqual(result.results[1].Id.Id, "page2")
@@ -176,10 +195,11 @@ class TestNotionRepoJournalPage(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         # Reset singleton instance to ensure clean state for each test class
         from src.repo.repo_page_notion import ClientSingleton
+
         ClientSingleton._instance = None
 
         # Manually start the patcher
-        self.client_patcher = patch('src.repo.repo_page_notion.Client')
+        self.client_patcher = patch("src.repo.repo_page_notion.Client")
         mock_notion_client_class = self.client_patcher.start()
 
         self.mock_notion_client = AsyncMock()
@@ -196,7 +216,9 @@ class TestNotionRepoJournalPage(unittest.IsolatedAsyncioTestCase):
         self.mock_notion_client.pages.retrieve.assert_awaited_once_with(page_id=page_id)
         self.assertIsInstance(result, JournalPage)
         self.assertEqual(result.Id.Id, page_id)
-        self.assertEqual(result.Properties.Title.title[0].text.content, "Test Journal Page")
+        self.assertEqual(
+            result.Properties.Title.title[0].text.content, "Test Journal Page"
+        )
 
     def test_convert_client_page(self):
         page_id = "test-journal-page-id"
@@ -208,14 +230,16 @@ class TestNotionRepoJournalPage(unittest.IsolatedAsyncioTestCase):
         self.assertIsInstance(client_page, JournalPage)
         self.assertEqual(client_page.Id.Id, page_id)
         self.assertIsInstance(client_page.Properties, JournalPageProperties)
-        self.assertEqual(client_page.Properties.Title.title[0].text.content, "Test Journal Page")
+        self.assertEqual(
+            client_page.Properties.Title.title[0].text.content, "Test Journal Page"
+        )
         self.assertEqual(client_page.Properties.Type.select.name, "Task")
         # JournalPageProperties doesn't have Assignee, Priority, etc.
-        self.assertFalse(hasattr(client_page.Properties, 'Assignee'))
+        self.assertFalse(hasattr(client_page.Properties, "Assignee"))
 
     def tearDown(self):
         self.client_patcher.stop()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

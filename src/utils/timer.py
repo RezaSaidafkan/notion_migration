@@ -1,7 +1,8 @@
-from typing import Any
 from time import perf_counter
-from src.models.client_models import P
+from typing import Any
+
 from src.config.load_config import GLOBAL_CONFIG
+from src.models.client_models import P
 
 
 async def _timed(coro, page: P, label: str, debug: bool | None = None) -> Any:

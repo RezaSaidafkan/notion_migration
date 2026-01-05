@@ -1,5 +1,5 @@
-from typing import Dict, Any, TypeVar, Generic
 from abc import ABC, abstractmethod
+from typing import Any, Dict, Generic, TypeVar
 
 T = TypeVar("T")  # CommonPage
 K = TypeVar("K")  # page id

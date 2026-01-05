@@ -1,15 +1,13 @@
 from dataclasses import dataclass
-from src.constants.literal_definitions import JournalRelations
-from typing import List, Optional, Union, TypeVar, Generic
+from typing import Generic, List, Optional, TypeVar, Union
+
 from dataclasses_json import DataClassJsonMixin
-from .api_models import (
-    PeopleProperty,
-    RichTextProperty,
-    SelectProperty,
-    StatusProperty,
-    IconProperty,ExternalEmoji,TimelineProperty,
-    TitleProperty,
-)
+
+from src.constants.literal_definitions import JournalRelations
+
+from .api_models import (ExternalEmoji, IconProperty, PeopleProperty,
+                         RichTextProperty, SelectProperty, StatusProperty,
+                         TimelineProperty, TitleProperty)
 
 # Define P as Page types
 P = TypeVar("P", bound=Union["Page", "JournalPage"])
@@ -50,7 +48,9 @@ class PageProperties(DataClassJsonMixin):
 class JournalPageProperties(DataClassJsonMixin):
     Title: TitleProperty
     Type: Optional[SelectProperty]
-    Status: Optional[SelectProperty| StatusProperty]  # update in the database, now we have State in source db and Select in journal db
+    Status: Optional[
+        SelectProperty | StatusProperty
+    ]  # update in the database, now we have State in source db and Select in journal db
     Timeline: Optional[TimelineProperty]
     Description: Optional[RichTextProperty]
 
@@ -73,11 +73,9 @@ class BaseHierarchyProperty(Generic[P], DataClassJsonMixin):
             for page in self.Descendants:
                 page_text = repr(page)
                 rel_parts.append(indent(page_text, "\t"))
-        
+
         if rel_parts:
-            return format_relation_heirarchy(
-                "", "\n".join(rel_parts), "Descendants"
-            )
+            return format_relation_heirarchy("", "\n".join(rel_parts), "Descendants")
         return ""
 
 
@@ -91,12 +89,13 @@ class PageRelation(Generic[P], BaseHierarchyProperty[P]):
             for page in self.Journals:
                 page_text = repr(page)
                 journ_parts.append(indent(page_text, "\t"))
-        
+
         base_repr = super().__repr__()
         if journ_parts:
             journ = "\n".join(journ_parts)
             return format_relation_heirarchy(base_repr, journ, "Journals")
         return base_repr
+
 
 @dataclass
 class JournalRelation(BaseHierarchyProperty):

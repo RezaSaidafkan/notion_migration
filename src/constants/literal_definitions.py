@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-from dataclasses import dataclass
 import enum
+from dataclasses import dataclass
 
 
 class JournalRelations(enum.Enum):

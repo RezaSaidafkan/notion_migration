@@ -1,14 +1,13 @@
-from typing import List, Coroutine, Generic
-from src.constants.literal_definitions import JournalRelations, DatabaseInfo
-from src.models.client_models import P, K, DB, R
 from abc import ABC, abstractmethod
+from typing import Coroutine, Generic, List
+
+from src.constants.literal_definitions import DatabaseInfo, JournalRelations
+from src.models.client_models import DB, K, P, R
 
 
 class ServicePageInterface(Generic[K, P, DB, R], ABC):
     @abstractmethod
-    def refresh_from_backend(
-        self, page_id: K
-    ) -> Coroutine[None, None, P]:
+    def refresh_from_backend(self, page_id: K) -> Coroutine[None, None, P]:
         pass
 
     @abstractmethod
@@ -33,26 +32,28 @@ class ServicePageInterface(Generic[K, P, DB, R], ABC):
         pass
 
     @abstractmethod
-    async def add_relations_to_page(
-        self, page: P, relations: R
-    ) -> None:
+    async def add_relations_to_page(self, page: P, relations: R) -> None:
         pass
 
     @abstractmethod
-    async def remove_relations_from_page(
-        self, page: P, relations: R
-    ) -> None:
+    async def remove_relations_from_page(self, page: P, relations: R) -> None:
         pass
 
     @abstractmethod
     async def migrate_page(
-        self, page: P, source_database_info: DatabaseInfo, destination_database_info: DatabaseInfo
+        self,
+        page: P,
+        source_database_info: DatabaseInfo,
+        destination_database_info: DatabaseInfo,
     ) -> None:
         pass
 
     @abstractmethod
     async def migrate_pages(
-        self, pages: List[P], source_database_info: DatabaseInfo, destination_database_info: DatabaseInfo
+        self,
+        pages: List[P],
+        source_database_info: DatabaseInfo,
+        destination_database_info: DatabaseInfo,
     ) -> None:
         pass
 

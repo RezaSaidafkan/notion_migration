@@ -1,26 +1,16 @@
-from typing import List, Union, cast
-import pprint
-from src.service.service_page_interface import ServicePageInterface
-from src.repo.repo_page_notion import (
-    NotionRepoJournalPage,
-    NotionRepoPage,
-    NotionRepository,
-)
-from src.models.client_models import (
-    Page,
-    JournalPage,
-    PageRelation,
-    JournalRelation,
-    K, P, DB, R
-)
-from src.constants.literal_definitions import (
-    JournalRelations,
-    SourceRelations,
-    DatabaseInfo,
-)
 import asyncio
+import pprint
 from asyncio import Task
+from typing import List, Union, cast
+
 from src.config.load_config import GLOBAL_CONFIG
+from src.constants.literal_definitions import (DatabaseInfo, JournalRelations,
+                                               SourceRelations)
+from src.models.client_models import (DB, JournalPage, JournalRelation, K, P,
+                                      Page, PageRelation, R)
+from src.repo.repo_page_notion import (NotionRepoJournalPage, NotionRepoPage,
+                                       NotionRepository)
+from src.service.service_page_interface import ServicePageInterface
 from src.utils.timer import _timed
 
 
@@ -41,9 +31,14 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
 
     async def refresh_from_backend(self, page_id: K) -> P:
         retrieved_page = await self._repo_source.read_page(page_id)
-        return cast(P, Page(
-            Id=page_id, Icon=retrieved_page.Icon, Properties=retrieved_page.Properties
-        ))
+        return cast(
+            P,
+            Page(
+                Id=page_id,
+                Icon=retrieved_page.Icon,
+                Properties=retrieved_page.Properties,
+            ),
+        )
 
     def get_pages(
         self,
@@ -53,19 +48,20 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         relation: Union[SourceRelations, JournalRelations],
         tg: asyncio.TaskGroup,
     ) -> Task[List[P]]:
-        
+
         return tg.create_task(
-                _timed(
-                    self.query_database(
+            _timed(
+                self.query_database(
                     database_info=database_info,
                     database_type=database_type,
                     filter_query={
                         "property": relation.value,
                         "relation": {"contains": page.Id.Id},
-                    }),
-                    page,
-                    "query_database:sub_pages",
+                    },
                 ),
+                page,
+                "query_database:sub_pages",
+            ),
         )
 
     def get_source_pages(
@@ -73,36 +69,40 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         page: P,
         database_info: DatabaseInfo,
         relation: SourceRelations,
-        tg: asyncio.TaskGroup) -> Task[List[P]]:
+        tg: asyncio.TaskGroup,
+    ) -> Task[List[P]]:
         return cast(
-                Task[List[P]], 
-                self.get_pages(
-                    page=cast(P, page),
-                    database_info=database_info,
-                    database_type=cast(DB, Page),
-                    relation=relation,
-                    tg=tg,
-                    )
-                )
-    
-    def get_journal_pages(self,
+            Task[List[P]],
+            self.get_pages(
+                page=cast(P, page),
+                database_info=database_info,
+                database_type=cast(DB, Page),
+                relation=relation,
+                tg=tg,
+            ),
+        )
+
+    def get_journal_pages(
+        self,
         page: P,
         database_info: DatabaseInfo,
         relation: JournalRelations,
-        tg: asyncio.TaskGroup) -> Task[List[P]]:
+        tg: asyncio.TaskGroup,
+    ) -> Task[List[P]]:
         return cast(
-                Task[List[P]],
-                self.get_pages(
-                    page=cast(P, page),
-                    database_info=database_info,
-                    database_type=cast(DB, JournalPage),
-                    relation=relation,
-                    tg=tg,
-                    )
-                )
-        
+            Task[List[P]],
+            self.get_pages(
+                page=cast(P, page),
+                database_info=database_info,
+                database_type=cast(DB, JournalPage),
+                relation=relation,
+                tg=tg,
+            ),
+        )
+
     async def query_database(
-        self, database_info: DatabaseInfo, database_type: DB, filter_query: dict) -> List[P]:
+        self, database_info: DatabaseInfo, database_type: DB, filter_query: dict
+    ) -> List[P]:
         repo: NotionRepository
         if database_type is Page:
             repo = self._repo_source
@@ -135,7 +135,7 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         journal_database: DatabaseInfo,
         journal_relation: JournalRelations,
         level: int = 0,
-        ) -> List[P]:
+    ) -> List[P]:
         """
         Return pages whose 'Ancestor' relation contains the given parent.
 
@@ -155,10 +155,9 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
                         level,
                         collected,
                         tg,
-                    )
-                ,
-                root_page,
-                'root_page'
+                    ),
+                    root_page,
+                    "root_page",
                 )
             )
 
@@ -173,29 +172,27 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         level: int,
         collected: list[P],
         tg: asyncio.TaskGroup,
-        ):
+    ):
         # create the coroutines and run them concurrently with timing & rate limited
 
         sub_pages_tasks: Task[List[P]] = self.get_source_pages(
-        page=page,
-        database_info=source_database_info,
-        relation=SourceRelations.ANCESTORS,
-        tg=tg,
-        ) # type: ignore
-        
+            page=page,
+            database_info=source_database_info,
+            relation=SourceRelations.ANCESTORS,
+            tg=tg,
+        )  # type: ignore
+
         journal_database_tasks: Task[List[P]] = self.get_journal_pages(
             page=page,
-            database_info=journal_database_info, 
-            relation=journal_relation, 
+            database_info=journal_database_info,
+            relation=journal_relation,
             tg=tg,
-        ) # type: ignore
+        )  # type: ignore
 
-            
         sub_pages, journal_database_pages = await asyncio.gather(
             sub_pages_tasks, journal_database_tasks
         )
         page.Relations = PageRelation(Descendants=None, Ancestors=None, Journals=None)
-        
 
         if journal_database_pages is not None:
             page.Relations.Journals = journal_database_pages
@@ -266,29 +263,31 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
             "This method should be implemented in the service layer."
         )
 
-    async def add_relations_to_page(
-        self, page: P, relations: R
-    ) -> None:
+    async def add_relations_to_page(self, page: P, relations: R) -> None:
         raise NotImplementedError(
             "This method should be implemented in the service layer."
         )
 
-    async def remove_relations_from_page(
-        self, page: P, relations: R
-    ) -> None:
+    async def remove_relations_from_page(self, page: P, relations: R) -> None:
         raise NotImplementedError(
             "This method should be implemented in the service layer."
         )
 
     async def migrate_page(
-        self, page: P, source_database_info: DatabaseInfo, destination_database_info: DatabaseInfo
+        self,
+        page: P,
+        source_database_info: DatabaseInfo,
+        destination_database_info: DatabaseInfo,
     ) -> None:
         raise NotImplementedError(
             "This method should be implemented in the service layer."
         )
 
     async def migrate_pages(
-        self, pages: List[P], source_database_info: DatabaseInfo, destination_database_info: DatabaseInfo
+        self,
+        pages: List[P],
+        source_database_info: DatabaseInfo,
+        destination_database_info: DatabaseInfo,
     ) -> None:
         raise NotImplementedError(
             "This method should be implemented in the service layer."

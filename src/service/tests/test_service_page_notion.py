@@ -1,20 +1,11 @@
 import unittest
-from unittest.mock import AsyncMock, patch, call
+from unittest.mock import AsyncMock, call, patch
 
+from src.constants.literal_definitions import DatabaseInfo, JournalRelations
+from src.models.api_models import TitleItem, TitleProperty, TitleText
+from src.models.client_models import (JournalPage, JournalPageProperties, Page,
+                                      PageId, PageProperties, PaginationResult)
 from src.service.service_page_notion import ServicePage
-from src.models.client_models import (
-    Page,
-    JournalPage,
-    PageId,
-    PageProperties,
-    JournalPageProperties,
-    PaginationResult,
-)
-from src.models.api_models import TitleProperty, TitleItem, TitleText
-from src.constants.literal_definitions import (
-    DatabaseInfo,
-    JournalRelations,
-)
 
 
 def create_mock_page(
@@ -71,7 +62,7 @@ class TestServicePage(unittest.IsolatedAsyncioTestCase):
         self.mock_repo_source.read_page.assert_awaited_once_with(page_id)
         self.assertIsInstance(result, Page)
         self.assertEqual(result.Id, page_id)
-        self.assertEqual(result.Properties.Title, mock_page.Properties.Title)    
+        self.assertEqual(result.Properties.Title, mock_page.Properties.Title)
 
     async def test_query_database_for_source_pages(self):
         """Test querying for Page types uses the source repo."""
@@ -92,9 +83,7 @@ class TestServicePage(unittest.IsolatedAsyncioTestCase):
     async def test_query_database_for_journal_pages(self):
         """Test querying for JournalPage types uses the journal repo."""
         db_info = DatabaseInfo(DatabaseId="journal-db")
-        mock_journal_pages = [
-            create_mock_page("j1", "Journal 1", model=JournalPage)
-        ]
+        mock_journal_pages = [create_mock_page("j1", "Journal 1", model=JournalPage)]
         self.mock_repo_journal.query_database.return_value = PaginationResult(
             results=mock_journal_pages, has_more=False, next_cursor=None
         )
@@ -113,10 +102,11 @@ class TestServicePage(unittest.IsolatedAsyncioTestCase):
         db_info = DatabaseInfo(DatabaseId="source-db")
         mock_page1 = create_mock_page("p1", "Page 1")
         mock_page2 = create_mock_page("p2", "Page 2")
-        
 
         self.mock_repo_source.query_database.side_effect = [
-            PaginationResult(results=[mock_page1], has_more=True, next_cursor="cursor1"),
+            PaginationResult(
+                results=[mock_page1], has_more=True, next_cursor="cursor1"
+            ),
             PaginationResult(results=[mock_page2], has_more=False, next_cursor=None),
         ]
 
@@ -124,15 +114,25 @@ class TestServicePage(unittest.IsolatedAsyncioTestCase):
         result = await self.service.query_database(
             database_info=db_info, database_type=Page, filter_query={}
         )
-        
+
         # Assert
         self.assertEqual(self.mock_repo_source.query_database.await_count, 2)
         self.assertEqual(result, [mock_page1, mock_page2])
         # Check that the cursor was passed correctly in the second call
         self.mock_repo_source.query_database.assert_has_awaits(
             [
-                call(data_source_id=db_info.DatabaseId, page_size=unittest.mock.ANY, filter_query={}, cursor=None),
-                call(data_source_id=db_info.DatabaseId, page_size=unittest.mock.ANY, filter_query={}, cursor="cursor1"),
+                call(
+                    data_source_id=db_info.DatabaseId,
+                    page_size=unittest.mock.ANY,
+                    filter_query={},
+                    cursor=None,
+                ),
+                call(
+                    data_source_id=db_info.DatabaseId,
+                    page_size=unittest.mock.ANY,
+                    filter_query={},
+                    cursor="cursor1",
+                ),
             ]
         )
 
@@ -154,18 +154,25 @@ class TestServicePage(unittest.IsolatedAsyncioTestCase):
                 return []  # sub-page has no children
             if database_type == JournalPage:
                 if page_id == "root":
-                    return [journal_page] # root has one journal page
-                return [] # no other journals
+                    return [journal_page]  # root has one journal page
+                return []  # no other journals
             return []
 
         # Let the real process_source_recursive run, but mock its dependency (query_database)
         # and the methods it calls recursively to stop the recursion.
-        with patch.object(self.service, "query_database", side_effect=mock_query_db) as mock_query, \
-             patch.object(self.service, "process_journal_recursive", new_callable=AsyncMock) as mock_process_journal:
+        with (
+            patch.object(
+                self.service, "query_database", side_effect=mock_query_db
+            ) as mock_query,
+            patch.object(
+                self.service, "process_journal_recursive", new_callable=AsyncMock
+            ) as mock_process_journal,
+        ):
 
             # We need to patch process_source_recursive to stop it from recursing infinitely in the test.
             # The side_effect will call the real method once, then do nothing.
             original_process_source = self.service.process_source_recursive
+
             async def side_effect_to_stop_recursion(*args, **kwargs):
                 # The first call is for the root page. Let it run.
                 if mock_process_source.call_count == 1:
@@ -173,7 +180,11 @@ class TestServicePage(unittest.IsolatedAsyncioTestCase):
                 # Subsequent calls (for sub_page) will do nothing, stopping recursion.
                 return
 
-            with patch.object(self.service, 'process_source_recursive', side_effect=side_effect_to_stop_recursion) as mock_process_source:
+            with patch.object(
+                self.service,
+                "process_source_recursive",
+                side_effect=side_effect_to_stop_recursion,
+            ) as mock_process_source:
                 await self.service.build_page_hierarchy(
                     root_page, source_db, journal_db, JournalRelations.BACKTRACK
                 )
@@ -184,18 +195,27 @@ class TestServicePage(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(root_page.Relations.Journals, [journal_page])
 
                 # Check that query_database was called for sub-pages and journal pages of root
-                mock_query.assert_has_calls([
-                    call(
-                        database_info=source_db,
-                        database_type=Page,
-                        filter_query={'property': 'Ancestors',
-                                'relation': {'contains': 'root'}}),
-                    call(
-                        database_info=journal_db,
-                        database_type=JournalPage,
-                        filter_query={'property': 'Backtrack',
-                                'relation': {'contains': 'root'}}),
-                ], any_order=True)
+                mock_query.assert_has_calls(
+                    [
+                        call(
+                            database_info=source_db,
+                            database_type=Page,
+                            filter_query={
+                                "property": "Ancestors",
+                                "relation": {"contains": "root"},
+                            },
+                        ),
+                        call(
+                            database_info=journal_db,
+                            database_type=JournalPage,
+                            filter_query={
+                                "property": "Backtrack",
+                                "relation": {"contains": "root"},
+                            },
+                        ),
+                    ],
+                    any_order=True,
+                )
 
                 # Check recursive calls were initiated
                 self.assertEqual(mock_process_source.call_count, 2)  # root + sub_page
