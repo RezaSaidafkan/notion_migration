@@ -8,26 +8,26 @@ load_dotenv()
 
 @dataclass
 class Config:
-    NOTION_API_KEY: str | None
-    SOURCE_PARENT_PAGE: str | None
-    SOURCE_DATABASE_ID_LIFE_STYLE: str | None
-    SOURCE_DATABASE_ID_NUCLEUS: str | None
-    JOURNAL_DATABASE_ID: str | None
-    PAGE_SIZE: int
-    SEMAPHORE_LIMIT: int
-    DEBUG: bool
+    notion_api_key: str | None
+    source_parent_page: str | None
+    source_database_id_life_style: str | None
+    source_database_id_nucleus: str | None
+    journal_database_id: str | None
+    page_size: int
+    semaphore_limit: int
+    debug: bool
 
 
 def get_config() -> Config:
     return Config(
-        NOTION_API_KEY=os.getenv("NOTION_API_KEY"),
-        SOURCE_PARENT_PAGE=os.getenv("SOURCE_PARENT_PAGE"),
-        SOURCE_DATABASE_ID_LIFE_STYLE=os.getenv("SOURCE_DATABASE_ID_LIFE_STYLE"),
-        SOURCE_DATABASE_ID_NUCLEUS=os.getenv("SOURCE_DATABASE_ID_NUCLEUS"),
-        JOURNAL_DATABASE_ID=os.getenv("TARGET_DATABASE_ID"),
-        PAGE_SIZE=int(os.getenv("PAGE_SIZE", PAGINATION_SIZE)),
-        SEMAPHORE_LIMIT=int(os.getenv("SEMAPHORE_LIMIT", 10)),
-        DEBUG=os.getenv("DEBUG", "False").lower() in ("true", "1"),
+        notion_api_key=os.getenv("NOTION_API_KEY"),
+        source_parent_page=os.getenv("SOURCE_PARENT_PAGE"),
+        source_database_id_life_style=os.getenv("SOURCE_DATABASE_ID_LIFE_STYLE"),
+        source_database_id_nucleus=os.getenv("SOURCE_DATABASE_ID_NUCLEUS"),
+        journal_database_id=os.getenv("TARGET_DATABASE_ID"),
+        page_size=int(os.getenv("PAGE_SIZE", PAGINATION_SIZE)),
+        semaphore_limit=int(os.getenv("SEMAPHORE_LIMIT", 10)),
+        debug=os.getenv("DEBUG", "False").lower() in ("true", "1"),
     )
 
 

@@ -82,7 +82,7 @@ class TestServicePage(unittest.IsolatedAsyncioTestCase):
         )
 
         result = await self.service.query_database(
-            database_info=db_info, database_type=Page, filter={}
+            database_info=db_info, database_type=Page, filter_query={}
         )
 
         self.mock_repo_source.query_database.assert_awaited_once()
@@ -100,7 +100,7 @@ class TestServicePage(unittest.IsolatedAsyncioTestCase):
         )
 
         result = await self.service.query_database(
-            database_info=db_info, database_type=JournalPage, filter={}
+            database_info=db_info, database_type=JournalPage, filter_query={}
         )
 
         self.mock_repo_journal.query_database.assert_awaited_once()
@@ -122,7 +122,7 @@ class TestServicePage(unittest.IsolatedAsyncioTestCase):
 
         # Act
         result = await self.service.query_database(
-            database_info=db_info, database_type=Page, filter={}
+            database_info=db_info, database_type=Page, filter_query={}
         )
         
         # Assert
@@ -131,8 +131,8 @@ class TestServicePage(unittest.IsolatedAsyncioTestCase):
         # Check that the cursor was passed correctly in the second call
         self.mock_repo_source.query_database.assert_has_awaits(
             [
-                call(data_source_id=db_info.DatabaseId, page_size=unittest.mock.ANY, filter={}, cursor=None),
-                call(data_source_id=db_info.DatabaseId, page_size=unittest.mock.ANY, filter={}, cursor="cursor1"),
+                call(data_source_id=db_info.DatabaseId, page_size=unittest.mock.ANY, filter_query={}, cursor=None),
+                call(data_source_id=db_info.DatabaseId, page_size=unittest.mock.ANY, filter_query={}, cursor="cursor1"),
             ]
         )
 
@@ -146,8 +146,8 @@ class TestServicePage(unittest.IsolatedAsyncioTestCase):
         journal_db = DatabaseInfo(DatabaseId="journal-db")
 
         # Mock query_database to control the hierarchy
-        async def mock_query_db(database_info, database_type, filter):
-            page_id = filter["relation"]["contains"]
+        async def mock_query_db(database_info, database_type, filter_query):
+            page_id = filter_query["relation"]["contains"]
             if database_type == Page:
                 if page_id == "root":
                     return [sub_page]  # root has one sub-page
@@ -188,12 +188,12 @@ class TestServicePage(unittest.IsolatedAsyncioTestCase):
                     call(
                         database_info=source_db,
                         database_type=Page,
-                        filter={'property': 'Ancestors',
+                        filter_query={'property': 'Ancestors',
                                 'relation': {'contains': 'root'}}),
                     call(
                         database_info=journal_db,
                         database_type=JournalPage,
-                        filter={'property': 'Backtrack',
+                        filter_query={'property': 'Backtrack',
                                 'relation': {'contains': 'root'}}),
                 ], any_order=True)
 

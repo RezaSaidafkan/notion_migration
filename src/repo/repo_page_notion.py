@@ -61,14 +61,14 @@ class NotionRepository(
         self,
         data_source_id: str,
         page_size: int,
-        filter: Dict[str, Any],
+        filter_query: Dict[str, Any],
         cursor: str | None = None,
-        debug: bool = GLOBAL_CONFIG.DEBUG,
+        debug: bool = GLOBAL_CONFIG.debug,
     ) -> PaginationResult[P]:
         try:
             query = {
                 "start_cursor": cursor,
-                "filter": filter or {},
+                "filter": filter_query or {},
                 "page_size": page_size,
             }
             resp = await self.notion.data_sources.query(data_source_id, **query)

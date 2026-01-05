@@ -59,7 +59,7 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
                     self.query_database(
                     database_info=database_info,
                     database_type=database_type,
-                    filter={
+                    filter_query={
                         "property": relation.value,
                         "relation": {"contains": page.Id.Id},
                     }),
@@ -102,7 +102,7 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
                 )
         
     async def query_database(
-        self, database_info: DatabaseInfo, database_type: DB, filter: dict) -> List[P]:
+        self, database_info: DatabaseInfo, database_type: DB, filter_query: dict) -> List[P]:
         repo: NotionRepository
         if database_type is Page:
             repo = self._repo_source
@@ -119,8 +119,8 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         while not exhausted:
             pagination = await repo.query_database(
                 data_source_id=database_info.DatabaseId,
-                page_size=GLOBAL_CONFIG.PAGE_SIZE,
-                filter=filter,
+                page_size=GLOBAL_CONFIG.page_size,
+                filter_query=filter_query,
                 cursor=cursor,
             )
             pages.extend(cast(List[P], pagination.results))

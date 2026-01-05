@@ -23,7 +23,7 @@ class TestTimer(unittest.IsolatedAsyncioTestCase):
 
         with patch("builtins.print") as mock_print:
             with patch("src.utils.timer.GLOBAL_CONFIG") as mock_config:
-                mock_config.DEBUG = True
+                mock_config.debug = True
 
                 # Create a mock page inside the test to avoid issues with global scope
                 mock_page = create_mock_page("page1", "Test Page")
@@ -42,7 +42,7 @@ class TestTimer(unittest.IsolatedAsyncioTestCase):
 
         with patch("builtins.print") as mock_print:
             with patch("src.utils.timer.GLOBAL_CONFIG") as mock_config:
-                mock_config.DEBUG = False
+                mock_config.debug = False
 
                 # Create a mock page inside the test to avoid issues with global scope
                 mock_page = create_mock_page("page", "Test Page")

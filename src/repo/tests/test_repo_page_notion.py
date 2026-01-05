@@ -107,7 +107,7 @@ class TestNotionRepoPage(unittest.IsolatedAsyncioTestCase):
         result = await self.repo.query_database(
             data_source_id=db_id,
             page_size=page_size,
-            filter=filter_dict,
+            filter_query=filter_dict,
             cursor=None
         )
 
@@ -148,7 +148,7 @@ class TestNotionRepoPage(unittest.IsolatedAsyncioTestCase):
         result = await self.repo.query_database(
             data_source_id=db_id,
             page_size=page_size,
-            filter={},
+            filter_query={},
             cursor=None
         )
 
