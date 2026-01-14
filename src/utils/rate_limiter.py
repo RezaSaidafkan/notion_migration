@@ -4,6 +4,7 @@ from typing import Any, Callable, Dict
 from aiolimiter import AsyncLimiter
 
 
+# pylint: disable = invalid-name
 class rate_limited:
     singleton_instance: Dict[Any, Any] = {}
 

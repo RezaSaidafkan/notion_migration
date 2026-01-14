@@ -1,3 +1,4 @@
+# pylint: disable=all
 import unittest
 from unittest.mock import AsyncMock, call, patch
 
@@ -10,7 +11,7 @@ class TestRateLimited(unittest.IsolatedAsyncioTestCase):
         self.mocked_async_limiter = self.patched_async_limiter.start()
 
     def test_singleton(self):
-        """Validate only a single instance created throught multiple calls"""
+        """Validate only a single instance created throught multiple calls."""
         # Arrange
         kwargs1 = {"time_period": 1, "max_rate": 3}
         kwargs2 = {"time_period": 2, "max_rate": 3}
@@ -22,13 +23,13 @@ class TestRateLimited(unittest.IsolatedAsyncioTestCase):
         assert singleton_1 == singleton_2
 
     def test_not_passing_arg(self):
-        """Validate the class decorator raises when required args & kwargs are not passed"""
+        """Validate the class decorator raises when required args & kwargs are not passed."""
         # Arrange & Act & Assert
         with self.assertRaises(TypeError):
             rate_limited()
 
     def test_passing_correct_args(self):
-        """Validate the class decorator passes when required args & kwargs are passed"""
+        """Validate the class decorator passes when required args & kwargs are passed."""
         # Arrange
         kwargs = {"time_period": 1, "max_rate": 3}
 
@@ -36,7 +37,7 @@ class TestRateLimited(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(rate_limited(**kwargs))
 
     async def test_wrapper_called_once(self):
-        """Validate the wrapper is rate limiting the coroutine alongside all the args"""
+        """Validate the wrapper is rate limiting the coroutine alongside all the args."""
         # Arrange
         kwargs = {"time_period": 1, "max_rate": 3}
         coroutineArgs = "arg1"
@@ -56,7 +57,7 @@ class TestRateLimited(unittest.IsolatedAsyncioTestCase):
         mockedCoroutine.assert_called_once_with(*coroutineArgs, **coroutineKwargs)
 
     async def test_wrapper_called_multiple(self):
-        """Validate the wrapper is rate limiting the coroutine alongside all the args"""
+        """Validate the wrapper is rate limiting the coroutine alongside all the args."""
         # Arrange
         kwargs = {"time_period": 1, "max_rate": 3}
         coroutineArgs1 = "arg1"

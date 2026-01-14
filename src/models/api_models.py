@@ -72,6 +72,7 @@ class SelectProperty(BaseModel):
     def __repr__(self):
         if self.select:
             return self.select.__repr__()
+        return ""
 
 
 class StatusOption(BaseModel):

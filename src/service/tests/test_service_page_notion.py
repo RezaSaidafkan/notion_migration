@@ -1,16 +1,11 @@
+# pylint: disable=all
 import unittest
 from unittest.mock import AsyncMock, call, patch
 
 from src.constants.literal_definitions import DatabaseInfo, JournalRelations
 from src.models.api_models import TitleItem, TitleProperty, TitleText
-from src.models.client_models import (
-    JournalPage,
-    JournalPageProperties,
-    Page,
-    PageId,
-    PageProperties,
-    PaginationResult,
-)
+from src.models.client_models import (JournalPage, JournalPageProperties, Page,
+                                      PageId, PageProperties, PaginationResult)
 from src.service.service_page_notion import ServicePage
 
 
@@ -62,7 +57,7 @@ class TestServicePage(unittest.IsolatedAsyncioTestCase):
         self.mock_repo_source.read_page.return_value = mock_page
 
         # Act
-        result = await self.service.refresh_from_backend(page_id)
+        result = await self.service.read_page(page_id)
 
         # Assert
         self.mock_repo_source.read_page.assert_awaited_once_with(page_id)
@@ -174,8 +169,8 @@ class TestServicePage(unittest.IsolatedAsyncioTestCase):
                 self.service, "process_journal_recursive", new_callable=AsyncMock
             ) as mock_process_journal,
         ):
-
-            # We need to patch process_source_recursive to stop it from recursing infinitely in the test.
+            # We need to patch process_source_recursive to stop it from
+            # recursing infinitely in the test.
             # The side_effect will call the real method once, then do nothing.
             original_process_source = self.service.process_source_recursive
 

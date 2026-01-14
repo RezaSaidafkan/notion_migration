@@ -1,6 +1,7 @@
 import asyncio
 import pprint
 from asyncio import Task
+from dataclasses import dataclass
 from typing import List, Union, cast
 
 from src.config.load_config import GLOBAL_CONFIG
@@ -28,6 +29,13 @@ from src.service.service_page_interface import ServicePageInterface
 from src.utils.timer import _timed
 
 
+@dataclass(frozen=True)
+class ProcessingContext:
+    source_database_info: DatabaseInfo
+    journal_database_info: DatabaseInfo
+    journal_relation: JournalRelations
+
+
 class ServicePage(ServicePageInterface[K, P, DB, R]):
     """Service layer for page-related domain logic.
 
@@ -42,7 +50,7 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         self._repo_source = repo_source
         self._repo_journal = repo_journal
 
-    async def refresh_from_backend(self, page_id: K) -> P:
+    async def read_page(self, page_id: K) -> P:
         retrieved_page = await self._repo_source.read_page(page_id)
         return cast(
             P,
@@ -53,6 +61,7 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
             ),
         )
 
+    # pylint: disable=too-many-positional-arguments, too-many-arguments
     def get_pages(
         self,
         page: P,
@@ -61,7 +70,6 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         relation: Union[SourceRelations, JournalRelations],
         tg: asyncio.TaskGroup,
     ) -> Task[List[P]]:
-
         return tg.create_task(
             _timed(
                 self.query_database(
@@ -144,26 +152,29 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
     async def build_page_hierarchy(
         self,
         root_page: P,
-        source_database: DatabaseInfo,
-        journal_database: DatabaseInfo,
+        source_database_info: DatabaseInfo,
+        journal_database_info: DatabaseInfo,
         journal_relation: JournalRelations,
         level: int = 0,
-    ) -> List[P]:
+    ) -> List[P]: # pylint: disable=too-many-positional-arguments
         """Return pages whose 'Ancestor' relation contains the given parent.
 
         This method contains the schema knowledge ('Ancestor' relation) and
         delegates to the repository's generic `query_database` method.
         """
         collected: list[P] = []
+        context = ProcessingContext(
+            source_database_info=source_database_info,
+            journal_database_info=journal_database_info,
+            journal_relation=journal_relation,
+        )
 
         async with asyncio.TaskGroup() as tg:
             tg.create_task(
                 _timed(
                     self.process_source_recursive(
                         root_page,
-                        source_database,
-                        journal_database,
-                        journal_relation,
+                        context,
                         level,
                         collected,
                         tg,
@@ -178,9 +189,7 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
     async def process_source_recursive(
         self,
         page: P,
-        source_database_info: DatabaseInfo,
-        journal_database_info: DatabaseInfo,
-        journal_relation: JournalRelations,
+        context: ProcessingContext,
         level: int,
         collected: list[P],
         tg: asyncio.TaskGroup,
@@ -189,15 +198,15 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
 
         sub_pages_tasks: Task[List[P]] = self.get_source_pages(
             page=page,
-            database_info=source_database_info,
+            database_info=context.source_database_info,
             relation=SourceRelations.ANCESTORS,
             tg=tg,
         )  # type: ignore
 
         journal_database_tasks: Task[List[P]] = self.get_journal_pages(
             page=page,
-            database_info=journal_database_info,
-            relation=journal_relation,
+            database_info=context.journal_database_info,
+            relation=context.journal_relation,
             tg=tg,
         )  # type: ignore
 
@@ -212,8 +221,8 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
                 tg.create_task(
                     self.process_journal_recursive(
                         journ_page,
-                        journal_database_info,
-                        journal_relation,
+                        context.journal_database_info,
+                        context.journal_relation,
                         tg,
                     ),
                 )
@@ -224,9 +233,7 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
                 tg.create_task(
                     self.process_source_recursive(
                         sub_page,
-                        source_database_info,
-                        journal_database_info,
-                        journal_relation,
+                        context,
                         level + 1,
                         collected,
                         tg,
@@ -236,7 +243,6 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         if level == 1:
             pprint.pprint(page)
             collected.append(page)
-
     async def process_journal_recursive(
         self,
         page: P,
@@ -244,8 +250,10 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         journal_relation: JournalRelations,
         tg: asyncio.TaskGroup,
     ):
-        """This function processes a journal page recursively, fetching its sub-journal pages.
-        Assigns the found sub-journal pages to the Relations.Descendants / Relations.Ancestors attributes of the page.
+        """Process a journal page recursively, fetching its sub-journal pages.
+
+        Assigns the found sub-journal pages to the Relations.Descendants / Relations.Ancestors
+        attributes of the page.
         """
         sub_journal_pages: List[P] = await self.get_journal_pages(
             page=page,

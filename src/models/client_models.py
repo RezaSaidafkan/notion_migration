@@ -1,3 +1,4 @@
+# pylint: disable = C0103
 from dataclasses import dataclass
 from typing import Generic, List, Optional, TypeVar, Union
 
@@ -32,6 +33,7 @@ class PageId(DataClassJsonMixin):
     Id: str
 
 
+# pylint: disable = too-many-instance-attributes
 @dataclass
 class PageProperties(DataClassJsonMixin):
     Title: TitleProperty
@@ -178,8 +180,7 @@ def format_relation_heirarchy(
         rels_indented = indent(relationString, "\t")
         if parent_repr:
             return parent_repr + f"\n{indent(relation_name)}:\n{rels_indented}"
-        else:
-            return f"{indent(relation_name)}:\n{rels_indented}"
+        return f"{indent(relation_name)}:\n{rels_indented}"
     return parent_repr
 
 

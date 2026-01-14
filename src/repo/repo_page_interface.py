@@ -11,12 +11,13 @@ class RepositoryInterface(Generic[K, T, R], ABC):
     async def read_page(self, page_id: K, debug: bool = False) -> T:
         pass
 
+    # pylint: disable=too-many-positional-arguments, too-many-arguments
     @abstractmethod
     async def query_database(
         self,
-        database_id: str,
+        data_source_id: str,
         page_size: int,
-        filter: Dict[str, Any],
+        filter_query: Dict[str, Any],
         cursor: str | None,
         debug: bool,
     ) -> R:
@@ -26,11 +27,6 @@ class RepositoryInterface(Generic[K, T, R], ABC):
     async def create_page(self, page: T, debug: bool) -> bool:
         pass
 
-    @abstractmethod  # TODO: see if you can fix partial pass for dataclass properties
+    @abstractmethod
     async def update_page(self, page: T, debug: bool) -> bool:
         pass
-
-    # this should move to service layer
-    # @abstractmethod
-    # async def append_page_relations(self, page: CommonPage, relations: PageRelation) -> None:
-    #     pass

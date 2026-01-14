@@ -21,6 +21,7 @@ DatabaseType = Union[Page, JournalPage]
 RelationType = Union[PageRelation, JournalRelation]
 
 
+# pylint: disable = too-few-public-methods
 class Runner:
     def __init__(self):
         repo_notion_source = NotionRepoPage(GLOBAL_CONFIG.notion_api_key)
@@ -32,17 +33,17 @@ class Runner:
     async def run(
         self,
         parent_page_id: str,
-        source_database: DatabaseInfo,
-        journal_database: DatabaseInfo,
+        source_database_info: DatabaseInfo,
+        journal_database_info: DatabaseInfo,
         journal_relation: JournalRelations,
     ) -> None:
         root_page_id = PageId(Id=parent_page_id)
-        root_page = await self.service.refresh_from_backend(root_page_id)
+        root_page = await self.service.read_page(root_page_id)
 
         _ = await self.service.build_page_hierarchy(
             root_page=root_page,
-            source_database=source_database,
-            journal_database=journal_database,
+            source_database_info=source_database_info,
+            journal_database_info=journal_database_info,
             journal_relation=journal_relation,
         )
         pprint.pprint(root_page)
@@ -52,12 +53,12 @@ class Runner:
 async def main():
     runner = Runner()
     journal_relation = JournalRelations.LIFE_STYLE
-    journal_db = DatabaseInfo(DatabaseId=GLOBAL_CONFIG.journal_database_id)
-    source_db = DatabaseInfo(DatabaseId=GLOBAL_CONFIG.source_database_id_life_style)
+    journal_db_info = DatabaseInfo(DatabaseId=GLOBAL_CONFIG.journal_database_id)
+    source_db_info = DatabaseInfo(DatabaseId=GLOBAL_CONFIG.source_database_id_life_style)
     await runner.run(
         parent_page_id=GLOBAL_CONFIG.source_parent_page,
-        source_database=source_db,
-        journal_database=journal_db,
+        source_database_info=source_db_info,
+        journal_database_info=journal_db_info,
         journal_relation=journal_relation,
     )
 

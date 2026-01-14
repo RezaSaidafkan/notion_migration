@@ -33,9 +33,43 @@ select = [
     "I",          # isort (covers C0411 import order)
 ]
 
+ignore = [
+    "D102",  # Ignore missing docstring in public methods
+    "D103",  # Ignore missing docstring in public functions
+    "D101",  # Ignore missing docstring in public class
+    "D100",  # Ignore missing docstring in public module
+    "D104",  # Ignore missing docstring in public package
+    "D107",  # Ignore missing docstring in `__init__` method
+    "D105",  # Missing docstring in magic method
+    "E501",  # Line too long (handled by Pylint)
+]
+
+exclude = [
+    "build",
+    "dist",
+    ".venv",
+    "__pypackages__",
+    "dev/**",
+    "**/tests/**",
+]
+
 [tool.ruff.lint.pydocstyle]
 convention = "google" # Or "numpy" / "pep257"
+
+[tool.pylint.messages_control]
+disable = [
+    "missing-module-docstring",
+    "missing-class-docstring",
+    "missing-function-docstring",
+]
+ignore = ["dev"]
+
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[dependency-groups]
+dev = [
+    "pytest (>=9.0.2,<10.0.0)"
+]

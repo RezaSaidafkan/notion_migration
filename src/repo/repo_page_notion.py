@@ -24,10 +24,7 @@ class RepositoryError(Exception):
     pass
 
 
-# --- Global Rate Limiting ---
-# A single semaphore for all repository instances to ensure we don't exceed Notion's API rate limit.
-
-
+# pylint: disable=too-few-public-methods
 class ClientSingleton:
     _instance = None
 
@@ -43,9 +40,6 @@ class ClientSingleton:
 class NotionRepository(
     Generic[P], RepositoryInterface[PageId, P, PaginationResult[P]], ClientSingleton
 ):
-    def __init__(self, notion_token: str):
-        super().__init__(notion_token)
-
     async def read_page(self, page_id: PageId, debug: bool = False) -> P:
         try:
             raw_result = await self.notion.pages.retrieve(page_id=page_id.Id)
@@ -53,12 +47,13 @@ class NotionRepository(
             page: P = self.convert_client_page(api_page)
             return page
         except APIResponseError as e:
-            raise RuntimeError(e)
+            raise RepositoryError(e) from e
 
     @abstractmethod
     def convert_client_page(self, result: ApiPage) -> P:
         pass
 
+    # pylint: disable=too-many-positional-arguments, too-many-arguments
     @rate_limited(max_rate=3, time_period=1)
     async def query_database(
         self,
@@ -85,12 +80,12 @@ class NotionRepository(
                 has_more=resp["has_more"],
                 next_cursor=resp.get("next_cursor"),
             )
-        except KeyError as keyError:
+        except KeyError as key_error:
             raise RepositoryError(
-                f"Failed to parse API response to internal model:\n{keyError}\n{resp}"
-            )
+                f"Failed to parse API response to internal model:\n{key_error}\n{resp}"
+            ) from key_error
         except Exception as e:
-            raise RepositoryError(e)
+            raise RepositoryError(e) from e
 
     async def create_page(self, page: P, debug: bool) -> bool:
         raise NotImplementedError(
@@ -104,9 +99,6 @@ class NotionRepository(
 
 
 class NotionRepoPage(NotionRepository[Page]):
-    def __init__(self, notion_token: str):
-        super().__init__(notion_token)
-
     def convert_client_page(self, result: ApiPage) -> Page:
         try:
             props = result.properties
@@ -127,13 +119,10 @@ class NotionRepoPage(NotionRepository[Page]):
         except Exception as e:
             raise RepositoryError(
                 f"Failed to parse API response to Page:\n{e}\n{result}"
-            )
+            ) from e
 
 
 class NotionRepoJournalPage(NotionRepository[JournalPage]):
-    def __init__(self, notion_token: str):
-        super().__init__(notion_token)
-
     def convert_client_page(self, result: ApiPage) -> JournalPage:
         try:
             props = result.properties
@@ -152,4 +141,4 @@ class NotionRepoJournalPage(NotionRepository[JournalPage]):
         except Exception as e:
             raise RepositoryError(
                 f"Failed to parse API response to JournalPage:\n{e}\n{result}"
-            )
+            ) from e
