@@ -24,6 +24,7 @@ dev = [
     "mypy (>=1.19.1,<2.0.0)",
     "ruff (>=0.14.13,<0.15.0)",
     "pylint (>=4.0.4,<5.0.0)",
+    "pre-commit (>=4.5.1,<5.0.0)",
 ]
 
 [tool.poetry]
@@ -59,7 +60,7 @@ exclude = [
 ]
 
 [tool.ruff.lint.pydocstyle]
-convention = "google" # Or "numpy" / "pep257"
+convention = "google"
 
 [tool.pylint.messages_control]
 disable = [
@@ -67,7 +68,16 @@ disable = [
     "missing-class-docstring",
     "missing-function-docstring",
 ]
-ignore = ["dev"]
+
+ignore = [
+    "dev",
+    "build",
+    "dist",
+    ".venv",
+    "__pypackages__",
+    "dev/**",
+    "**/tests/**"
+    ]
 
 
 [build-system]
