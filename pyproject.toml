@@ -12,13 +12,18 @@ dependencies = [
     "notion-client (>=2.5.0,<3.0.0)",
     "dataclasses-json (>=0.6.7,<0.7.0)",
     "python-dateutil (>=2.9.0.post0,<3.0.0)",
-    "mypy (>=1.18.2,<2.0.0)",
-    "pylint (>=4.0.2,<5.0.0)",
     "types-python-dateutil (>=2.9.0.20251008,<3.0.0.0)",
-    "ruff (>=0.14.2,<0.15.0)",
     "pydantic (>=2.12.4,<3.0.0)",
     "aiolimiter (>=1.2.1,<2.0.0)",
-    "py-spy (>=0.4.1,<0.5.0)"
+]
+
+[dependency-groups]
+dev = [
+    "pytest (>=9.0.2,<10.0.0)",
+    "py-spy (>=0.4.1,<0.5.0)",
+    "mypy (>=1.19.1,<2.0.0)",
+    "ruff (>=0.14.13,<0.15.0)",
+    "pylint (>=4.0.4,<5.0.0)",
 ]
 
 [tool.poetry]
@@ -68,8 +73,3 @@ ignore = ["dev"]
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
-
-[dependency-groups]
-dev = [
-    "pytest (>=9.0.2,<10.0.0)"
-]
