@@ -3,10 +3,19 @@ import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.models.api_models import ApiPage
-from src.models.client_models import (JournalPage, JournalPageProperties, Page,
-                                      PageId, PageProperties, PaginationResult)
-from src.repo.repo_page_notion import (ClientSingleton, NotionRepoJournalPage,
-                                       NotionRepoPage)
+from src.models.client_models import (
+    JournalPage,
+    JournalPageProperties,
+    Page,
+    PageId,
+    PageProperties,
+    PaginationResult,
+)
+from src.repo.repo_page_notion import (
+    ClientSingleton,
+    NotionRepoJournalPage,
+    NotionRepoPage,
+)
 
 
 def create_mock_api_page(page_id: str, title: str) -> dict:
@@ -63,7 +72,7 @@ def create_mock_api_page(page_id: str, title: str) -> dict:
 
 class TestNotionRepoPage(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        # Reset singleton instance to ensure clean state for each test class       
+        # Reset singleton instance to ensure clean state for each test class
         ClientSingleton._instance = None
 
         # Manually start the patcher
@@ -137,7 +146,7 @@ class TestNotionRepoPage(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.results[0].Id.Id, "page1")
 
     async def test_query_database_paginated(self):
-        """This test simulates pagination while the current implementation fetches 
+        """This test simulates pagination while the current implementation fetches
         all pages in a loop."""
         # Arrange
         mock_response_1 = {

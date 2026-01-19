@@ -37,6 +37,7 @@ def get_config() -> Config:
 # pylint: disable = too-few-public-methods
 class GlobalConfig:
     config: Config = None
+
     def __init__(self):
         if self.config is None:
             self.config = get_config()

@@ -156,7 +156,7 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         journal_database_info: DatabaseInfo,
         journal_relation: JournalRelations,
         level: int = 0,
-    ) -> List[P]: # pylint: disable=too-many-positional-arguments
+    ) -> List[P]:  # pylint: disable=too-many-positional-arguments
         """Return pages whose 'Ancestor' relation contains the given parent.
 
         This method contains the schema knowledge ('Ancestor' relation) and
@@ -243,6 +243,7 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         if level == 1:
             pprint.pprint(page)
             collected.append(page)
+
     async def process_journal_recursive(
         self,
         page: P,
