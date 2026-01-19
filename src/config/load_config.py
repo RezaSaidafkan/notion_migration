@@ -36,11 +36,13 @@ def get_config() -> Config:
 
 # pylint: disable = too-few-public-methods
 class GlobalConfig:
-    config: Config = None
+    config: Config
+    singleton = False
 
     def __init__(self):
-        if self.config is None:
+        if not self.singleton:
             self.config = get_config()
+            self.singleton = True
 
 
 GLOBAL_CONFIG = GlobalConfig().config

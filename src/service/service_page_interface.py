@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Coroutine, Generic, List
+from typing import Generic, List
 
 from src.constants.literal_definitions import DatabaseInfo, JournalRelations
 from src.models.client_models import DB, K, P, R
@@ -7,7 +7,7 @@ from src.models.client_models import DB, K, P, R
 
 class ServicePageInterface(Generic[K, P, DB, R], ABC):
     @abstractmethod
-    async def read_page(self, page_id: K) -> Coroutine[None, None, P]:
+    async def read_page(self, page_id: K) -> P:
         pass
 
     @abstractmethod
