@@ -1,0 +1,29 @@
+name: CI
+on: [push, pull_request]
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.14'
+          
+      - name: Install dependencies
+        run: |
+          pip install poetry
+          poetry install --no-root
+
+      - name: Ruff Check
+        run: poetry run ruff check .
+
+      - name: Mypy Check
+        run: poetry run mypy .
+
+      - name: Pylint (Deep Analysis)
+        run: poetry run pylint .
+
+      - name: Run Tests
+        run: poetry run pytest
