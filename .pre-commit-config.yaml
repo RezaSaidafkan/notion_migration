@@ -1,21 +1,38 @@
 repos:
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.13
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    rev: 0.9.26
     hooks:
-      - id: ruff
-        args: [ --fix ]
-      - id: ruff-format
-
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.19.1
-    hooks:
-      - id: mypy
-
+      - id: uv-lock
+        
   - repo: local
     hooks:
-      - id: pytest
-        name: pytest
-        entry: pytest
+      - id: uv-ruff
+        name: uv-ruff
+        entry: uv run ruff check .
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push] # Run ruff on push, not every commit, to save time
+      
+      - id: uv-pylint
+        name: uv-pylint
+        entry: uv run pylint .
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push] # Run pylint on push, not every commit, to save time
+      
+      - id: uv-mypy
+        name: uv-mypy
+        entry: uv run mypy .
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push] # Run mypy on push, not every commit, to save time
+      
+      - id: uv-pytest
+        name: uv-pytest
+        entry: uv run pytest .
         language: system
         pass_filenames: false
         always_run: true

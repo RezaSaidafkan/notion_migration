@@ -1,9 +1,6 @@
 .env
 .env.*
 
-# Dev environment files
-src/dev
-
 # Byte-compiled / cache
 *.pyc
 **/*.pyc
@@ -23,5 +20,5 @@ env/
 .vscode/
 .idea/
 
-# macOS
-.DS_Store
+# gitignore
+.gitignore

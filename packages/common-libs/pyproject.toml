@@ -1,0 +1,23 @@
+[project]
+name = "common-libs"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Reza Saidafkan", email = "93768131+rsaidafk@users.noreply.github.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "pydantic>=2.12.5",
+]
+
+[tool.uv]
+package = true
+
+[project.scripts]
+common-libs = "common_libs:__init__"
+
+
+[build-system]
+requires = ["uv_build>=0.9.26,<0.10.0"]
+build-backend = "uv_build"

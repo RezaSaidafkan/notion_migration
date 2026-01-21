@@ -1,0 +1,35 @@
+[project]
+name = "migration-engine"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Reza Saidafkan", email = "93768131+rsaidafk@users.noreply.github.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "aiolimiter>=1.2.1",
+    "dataclasses-json>=0.6.7",
+    "dotenv>=0.9.9",
+    "notion-client>=2.7.0",
+    "pydantic>=2.12.5",
+    "common-libs"
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.19.1",
+    "pre-commit>=4.5.1",
+    "pylint>=4.0.4",
+    "pytest>=9.0.2",
+    "ruff>=0.14.13",
+]
+
+[tool.uv.sources]
+common-libs = { workspace = true }
+
+[tool.uv]
+package = true
+
+[project.scripts]
+migration-engine = "migration_engine.main:main"

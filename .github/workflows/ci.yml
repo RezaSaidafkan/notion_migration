@@ -4,26 +4,31 @@ on: [push, pull_request]
 jobs:
   quality:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # Define your workspace members here
+        package: [migration-engine, tracing, common-libs]
+
     steps:
-      - uses: actions/checkout@v4
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.14'
+      - uses: actions/checkout@v6
           
-      - name: Install dependencies
-        run: |
-          pip install poetry
-          poetry install --no-root
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+      
+      - name: Set up Python
+        run: uv python install
+      
+      - name: synchornize dependencies
+        run: uv sync --all-packages
+      
+      - name: uv ruff check
+        run: uv run --project ${{ matrix.package }} ruff check .
 
-      - name: Ruff Check
-        run: poetry run ruff check .
+      - name: uv mypy check
+        run: uv run --project ${{ matrix.package }} mypy .
+      
+      - name: uv pylint check
+        run: uv run --project ${{ matrix.package }} pylint .
 
-      - name: Mypy Check
-        run: poetry run mypy .
-
-      - name: Pylint (Deep Analysis)
-        run: poetry run pylint .
-
-      - name: Run Tests
-        run: poetry run pytest
+      - name: Run Tests with pytest
+        run: uv run --project ${{ matrix.package }} pytest
