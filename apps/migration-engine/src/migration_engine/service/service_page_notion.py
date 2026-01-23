@@ -141,7 +141,7 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         while not exhausted:
             pagination = await repo.query_database(
                 data_source_id=database_info.DatabaseId,
-                page_size=GLOBAL_CONFIG.page_size,
+                page_size=GLOBAL_CONFIG.pagination_size,
                 filter_query=filter_query,
                 cursor=cursor,
             )

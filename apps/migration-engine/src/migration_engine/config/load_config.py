@@ -1,10 +1,7 @@
 import os
 from dataclasses import dataclass
 
-from common_libs.constants.literal_definitions import PAGINATION_SIZE
-from dotenv import load_dotenv
-
-load_dotenv()
+from dotenv import dotenv_values
 
 
 # pylint: disable = too-many-instance-attributes
@@ -15,21 +12,25 @@ class Config:
     source_database_id_life_style: str | None
     source_database_id_nucleus: str | None
     journal_database_id: str | None
-    page_size: int
+    pagination_size: int
     semaphore_limit: int
     debug: bool
 
 
 def get_config() -> Config:
+    env_vars = {
+        **dotenv_values(".env"),
+        **os.environ
+    }
     return Config(
-        notion_api_key=os.getenv("NOTION_API_KEY"),
-        source_parent_page=os.getenv("SOURCE_PARENT_PAGE"),
-        source_database_id_life_style=os.getenv("SOURCE_DATABASE_ID_LIFE_STYLE"),
-        source_database_id_nucleus=os.getenv("SOURCE_DATABASE_ID_NUCLEUS"),
-        journal_database_id=os.getenv("TARGET_DATABASE_ID"),
-        page_size=int(os.getenv("PAGE_SIZE", str(PAGINATION_SIZE))),
-        semaphore_limit=int(os.getenv("SEMAPHORE_LIMIT", "10")),
-        debug=os.getenv("DEBUG", "False").lower() in ("true", "1"),
+        notion_api_key=env_vars.get("NOTION_API_KEY") or None,
+        source_parent_page=env_vars.get("SOURCE_PARENT_PAGE") or None,
+        source_database_id_life_style=env_vars.get("SOURCE_DATABASE_ID_LIFE_STYLE") or None,
+        source_database_id_nucleus=env_vars.get("SOURCE_DATABASE_ID_NUCLEUS") or None,
+        journal_database_id=env_vars.get("TARGET_DATABASE_ID") or None,
+        pagination_size=int(env_vars.get("PAGINATION_SIZE") or "1"),
+        semaphore_limit=int(env_vars.get("SEMAPHORE_LIMIT") or "10"),
+        debug=(env_vars.get("DEBUG") or "False").lower() in ("true", "1"),
     )
 
 
