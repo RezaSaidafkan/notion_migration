@@ -1,4 +1,19 @@
-LIFE_STYLE_DB
-JOURNAL_DB
+# Notion Integration Key for the workspace
+NOTION_API_KEY
+
+# Lifestyle Database Source ID
+SOURCE_DATABASE_ID_LIFE_STYLE
+
+# Nucleus Database Source ID
+SOURCE_DATABASE_ID_NUCLEUS
+
+# Parent Page ID (which exists in the source database)
 SOURCE_PARENT_PAGE
-JOURNAL_PARENT_PAGE
+
+# Journal Database Source ID
+TARGET_DATABASE_ID
+
+PAGE_SIZE
+PAGINATION_SIZE
+SEMAPHORE_LIMIT
+DEBUG

@@ -70,6 +70,16 @@ svc = PageService(repo=repo)
 pages = svc.query_descendants_of_parent(parent_page_id="parent-123", database_id="db-abc")
 ```
 
+## Repo Structure
+This project is a monorepo handled py `uv`. The members' structure is as follows:
+- `/packages` contain the libraries package, which are common requirements for the apps. They contain data models among other things.
+- `/apps` contain the apps members: currently the `migration-engine`.
+- the root is a non-package member.
+- each member has their own dev dependencies, and therefore are responsible for their own linting, type checking and testings. But they share the common standard they inherit from at the root `pyproject.toml`.
+
+## Setup
+Docker compose takes care of containerizing and launching the apps with a local network they're at. The context is the root directory and all the `Dockerfile`s assume the root dir as their contexts too.
+
 ## Tests guidance
 
 - Service unit tests: mock/fake the repo and assert the service expresses the correct domain intent.

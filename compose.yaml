@@ -1,0 +1,23 @@
+services:
+  migration_engine:
+    build:
+      context: .
+      dockerfile: apps/migration-engine/Dockerfile
+    container_name: migration_engine
+    environment:
+      - NOTION_API_KEY
+      - SOURCE_DATABASE_ID_LIFE_STYLE
+      - SOURCE_DATABASE_ID_NUCLEUS
+      - SOURCE_PARENT_PAGE
+      - TARGET_DATABASE_ID
+      - PAGE_SIZE
+      - PAGINATION_SIZE
+      - SEMAPHORE_LIMIT
+      - DEBUG
+    networks:
+      - app-network
+networks:
+  app-network:
+    name: app-network
+    driver: bridge
+    
