@@ -16,6 +16,9 @@ env/
 .pytest_cache/
 .mypy_cache/
 
+# Eggs
+**/tracing.egg-info/
+
 # IDEs
 .vscode/
 .idea/
