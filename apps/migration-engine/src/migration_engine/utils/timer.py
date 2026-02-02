@@ -14,7 +14,7 @@ async def _timed(coro, page: P, label: str, debug: bool | None = None) -> Any:
         t1 = perf_counter()
         print(
             f"[TIMING] {label} \
-              page={page.Id.Id.replace('-', ''), page.Properties.Title.title} \
+              page={page.Id.Id, page.Properties.Title.title} \
               took={t1 - t0:.3f}s"
         )
     else:

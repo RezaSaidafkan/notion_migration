@@ -6,6 +6,10 @@ K = TypeVar("K")  # page id
 R = TypeVar("R")  # Pagination result
 
 
+class RepositoryError(Exception):
+    """Base Repository Layer Error."""
+
+
 class RepositoryInterface(Generic[K, T, R], ABC):
     @abstractmethod
     async def read_page(self, page_id: K, debug: bool = False) -> T:

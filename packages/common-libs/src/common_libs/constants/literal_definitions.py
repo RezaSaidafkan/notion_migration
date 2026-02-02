@@ -1,6 +1,7 @@
 # pylint: disable = invalid-name
 import enum
 from dataclasses import dataclass
+from uuid import UUID
 
 
 class JournalRelations(enum.Enum):
@@ -37,5 +38,5 @@ PAGINATION_SIZE = 20
 
 
 @dataclass
-class DatabaseInfo:
-    DatabaseId: str
+class DatasourceInfo:
+    DatasourceId: UUID

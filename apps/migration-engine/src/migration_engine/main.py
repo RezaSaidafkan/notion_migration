@@ -1,9 +1,10 @@
 import asyncio
-import pprint
+import logging
 from time import perf_counter
 from typing import Union
+from uuid import UUID
 
-from common_libs.constants.literal_definitions import DatabaseInfo, JournalRelations
+from common_libs.constants.literal_definitions import DatasourceInfo, JournalRelations
 from common_libs.models.client_models import (
     JournalPage,
     JournalRelation,
@@ -11,11 +12,14 @@ from common_libs.models.client_models import (
     PageId,
     PageRelation,
 )
+from pydantic import ValidationError
 
 import migration_engine.service.service_page_notion as spn
 from migration_engine.config.load_config import GLOBAL_CONFIG
 from migration_engine.helpers.utils import count_leaves
 from migration_engine.repo.repo_page_notion import NotionRepoJournalPage, NotionRepoPage
+
+logger = logging.getLogger(__name__)
 
 PageType = Union[Page, JournalPage]
 DatabaseType = Union[Page, JournalPage]
@@ -33,35 +37,42 @@ class Runner:
 
     async def run(
         self,
-        parent_page_id: str,
-        source_database_info: DatabaseInfo,
-        journal_database_info: DatabaseInfo,
+        source_datasource_info: DatasourceInfo,
+        journal_datasource_info: DatasourceInfo,
+        source_parent_page_id: UUID,
         journal_relation: JournalRelations,
     ) -> None:
-        root_page_id = PageId(Id=parent_page_id)
-        root_page = await self.service.read_page(root_page_id)
+        try:
+            root_page_id = PageId(Id=source_parent_page_id)
+            root_page = await self.service.read_page(root_page_id)
 
-        _ = await self.service.build_page_hierarchy(
-            root_page=root_page,
-            source_database_info=source_database_info,
-            journal_database_info=journal_database_info,
-            journal_relation=journal_relation,
-        )
-        pprint.pprint(root_page)
-        pprint.pprint(count_leaves(root_page))
+            _ = await self.service.build_page_hierarchy(
+                root_page=root_page,
+                source_datasource_info=source_datasource_info,
+                journal_datasource_info=journal_datasource_info,
+                journal_relation=journal_relation,
+            )
+            logger.info("Root Page Hierarchy:\n%s\nLeaves Count:%s",
+                        root_page, count_leaves(root_page))
+        except ValidationError as page_id_e:
+            logger.exception("Failed to validate PageId: %s: %s", source_parent_page_id, page_id_e)
+            raise page_id_e
+        except Exception as e:
+            logger.exception("Unknown error happened: %s", e)
+            raise e
 
 
 async def execute_lifestyle():
     runner = Runner()
     journal_relation = JournalRelations.LIFE_STYLE
-    journal_db_info = DatabaseInfo(DatabaseId=GLOBAL_CONFIG.journal_database_id)
-    source_db_info = DatabaseInfo(
-        DatabaseId=GLOBAL_CONFIG.source_database_id_life_style
+    journal_datasource_info = DatasourceInfo(DatasourceId=GLOBAL_CONFIG.journal_datasource_id)
+    source_datasource_info = DatasourceInfo(
+        DatasourceId=GLOBAL_CONFIG.source_datasource_id
     )
     await runner.run(
-        parent_page_id=GLOBAL_CONFIG.source_parent_page,
-        source_database_info=source_db_info,
-        journal_database_info=journal_db_info,
+        source_parent_page_id=GLOBAL_CONFIG.source_parent_page_id,
+        source_datasource_info=source_datasource_info,
+        journal_datasource_info=journal_datasource_info,
         journal_relation=journal_relation,
     )
 

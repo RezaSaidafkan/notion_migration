@@ -1,12 +1,12 @@
 import unittest
 from unittest.mock import AsyncMock, patch
+from uuid import UUID
 
 from common_libs.models.api_models import TitleItem, TitleProperty, TitleText
 from common_libs.models.client_models import Page, PageId, PageProperties
 from migration_engine.utils.timer import _timed
 
-
-def create_mock_page(page_id: str, title: str) -> Page:
+def create_mock_page(page_id: UUID, title: str) -> Page:
     """Helper to create a mock Page."""
     mock_title = TitleProperty(
         id="title_id",
@@ -36,8 +36,9 @@ class TestTimer(unittest.IsolatedAsyncioTestCase):
                 mock_config.debug = True
 
                 # Create a mock page inside the test to avoid issues with global scope
-                mock_page = create_mock_page("page1", "Test Page")
-
+                mock_page = create_mock_page(
+                    UUID('{12345678-1234-5678-1234-567812345678}'),
+                    "Test Page")
                 result = await _timed(mock_coro(), mock_page, label)
                 mock_coro.assert_awaited_once()
                 self.assertEqual(result, "coro_result")
@@ -45,7 +46,7 @@ class TestTimer(unittest.IsolatedAsyncioTestCase):
                 self.assertIn("[TIMING]", mock_print.call_args[0][0])
                 self.assertIn(label, mock_print.call_args[0][0])
                 self.assertIn(
-                    mock_page.Id.Id.replace("-", ""), mock_print.call_args[0][0]
+                    str(mock_page.Id.Id), mock_print.call_args[0][0]
                 )
 
     async def test_timed_debug_off(self):
@@ -57,7 +58,9 @@ class TestTimer(unittest.IsolatedAsyncioTestCase):
                 mock_config.debug = False
 
                 # Create a mock page inside the test to avoid issues with global scope
-                mock_page = create_mock_page("page", "Test Page")
+                mock_page = create_mock_page(
+                    UUID('{12345678-1234-5678-1234-567812345678}'),
+                    "Test Page")
                 result = await _timed(mock_coro(), mock_page, label)
 
                 mock_coro.assert_awaited_once()

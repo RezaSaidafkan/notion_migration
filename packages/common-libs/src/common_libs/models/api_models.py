@@ -1,6 +1,7 @@
 # pylint: disable=too-few-public-methods
 from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional
+from uuid import UUID
 
 from pydantic import BaseModel
 
@@ -228,6 +229,6 @@ class ApiPageProperties(BaseModel):
 
 
 class ApiPage(BaseModel):
-    id: str
+    id: UUID
     icon: Optional[IconProperty | ExternalEmoji]
     properties: ApiPageProperties

@@ -1,8 +1,8 @@
 # pylint: disable = C0103
-from dataclasses import dataclass
 from typing import Generic, List, Optional, TypeVar, Union
+from uuid import UUID
 
-from dataclasses_json import DataClassJsonMixin
+from pydantic import BaseModel
 
 from common_libs.constants.literal_definitions import JournalRelations
 
@@ -28,14 +28,12 @@ R = TypeVar("R", bound=Union["PageRelation", "JournalRelation"])
 K = TypeVar("K", bound="PageId")
 
 
-@dataclass
-class PageId(DataClassJsonMixin):
-    Id: str
+class PageId(BaseModel):
+    Id: UUID
 
 
 # pylint: disable = too-many-instance-attributes
-@dataclass
-class PageProperties(DataClassJsonMixin):
+class PageProperties(BaseModel):
     Title: TitleProperty
     Type: Optional[SelectProperty]
     Assignee: Optional[PeopleProperty]
@@ -53,8 +51,7 @@ class PageProperties(DataClassJsonMixin):
         return f"{title} | {typ} | {status} | {timeline}"
 
 
-@dataclass
-class JournalPageProperties(DataClassJsonMixin):
+class JournalPageProperties(BaseModel):
     Title: TitleProperty
     Type: Optional[SelectProperty]
     Status: Optional[
@@ -71,8 +68,7 @@ class JournalPageProperties(DataClassJsonMixin):
         return f"{title} | {typ} | {status} | {timeline}"
 
 
-@dataclass
-class BaseHierarchyProperty(Generic[P], DataClassJsonMixin):
+class BaseHierarchyProperty(Generic[P], BaseModel):
     Ancestors: Optional[List["P"]]
     Descendants: Optional[List["P"]]
 
@@ -88,7 +84,6 @@ class BaseHierarchyProperty(Generic[P], DataClassJsonMixin):
         return ""
 
 
-@dataclass
 class PageRelation(Generic[P], BaseHierarchyProperty[P]):
     Journals: Optional[List["P"]]
 
@@ -106,7 +101,6 @@ class PageRelation(Generic[P], BaseHierarchyProperty[P]):
         return base_repr
 
 
-@dataclass
 class JournalRelation(BaseHierarchyProperty):
     Database: Optional[JournalRelations] = None
     Backtrack: Optional[List["JournalPage"]] = None  # Ancestors
@@ -132,8 +126,7 @@ class JournalRelation(BaseHierarchyProperty):
         return base_repr
 
 
-@dataclass
-class CommonPage(DataClassJsonMixin):
+class CommonPage(BaseModel):
     Id: PageId
     Properties: Union[PageProperties, JournalPageProperties]
     Icon: Optional[IconProperty | ExternalEmoji]
@@ -143,7 +136,6 @@ class CommonPage(DataClassJsonMixin):
         return f"{icon} {self.Properties}"
 
 
-@dataclass
 class Page(CommonPage):
     Relations: Optional[PageRelation] = None
 
@@ -154,7 +146,6 @@ class Page(CommonPage):
         )
 
 
-@dataclass
 class JournalPage(CommonPage):
     Relations: Optional[JournalRelation] = None
 
@@ -184,8 +175,7 @@ def format_relation_heirarchy(
     return parent_repr
 
 
-@dataclass
-class PaginationResult(Generic[P]):
+class PaginationResult(BaseModel, Generic[P]):
     results: List[P]
     has_more: bool
     next_cursor: Union[str, None]

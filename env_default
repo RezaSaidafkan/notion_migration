@@ -1,17 +1,17 @@
 # Notion Integration Key for the workspace
 NOTION_API_KEY
 
-# Lifestyle Database Source ID
-SOURCE_DATABASE_ID_LIFE_STYLE
+# Source Data Source ID
+SOURCE_DATASOURCE_ID
 
-# Nucleus Database Source ID
-SOURCE_DATABASE_ID_NUCLEUS
+# Journal Data Source ID
+JOURNAL_DATASOURCE_ID
+
+# Target Data Source ID
+TARGET_DATASOURCE_ID
 
 # Parent Page ID (which exists in the source database)
-SOURCE_PARENT_PAGE
-
-# Journal Database Source ID
-TARGET_DATABASE_ID
+SOURCE_PARENT_PAGE_ID
 
 PAGE_SIZE
 PAGINATION_SIZE

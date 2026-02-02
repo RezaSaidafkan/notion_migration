@@ -1,24 +1,19 @@
 # pylint: disable=all
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import UUID
 
 from common_libs.models.api_models import ApiPage
-from common_libs.models.client_models import (
-    JournalPage,
-    JournalPageProperties,
-    Page,
-    PageId,
-    PageProperties,
-    PaginationResult,
-)
-from migration_engine.repo.repo_page_notion import (
-    ClientSingleton,
-    NotionRepoJournalPage,
-    NotionRepoPage,
-)
+from common_libs.models.client_models import (JournalPage,
+                                              JournalPageProperties, Page,
+                                              PageId, PageProperties,
+                                              PaginationResult)
+from migration_engine.repo.repo_page_notion import (ClientSingleton,
+                                                    NotionRepoJournalPage,
+                                                    NotionRepoPage)
 
 
-def create_mock_api_page(page_id: str, title: str) -> dict:
+def create_mock_api_page(page_id: UUID, title: str) -> dict:
     """Helper function to create a mock raw API page dictionary."""
     return {
         "object": "page",
@@ -30,7 +25,7 @@ def create_mock_api_page(page_id: str, title: str) -> dict:
         "icon": None,
         "properties": {
             "Title": {
-                "id": "title",
+                "id": "title_id",
                 "type": "title",
                 "title": [
                     {
@@ -84,20 +79,20 @@ class TestNotionRepoPage(unittest.IsolatedAsyncioTestCase):
         self.repo = NotionRepoPage(notion_token="fake_token")
 
     async def test_read_page(self):
-        page_id = "test-page-id"
-        mock_raw_page = create_mock_api_page(page_id, "Test Page")
+        page_id = UUID('{12345678-1234-5678-1234-567812345678}')
+        mock_raw_page = create_mock_api_page(str(page_id), "Test Page")
         self.mock_notion_client.pages.retrieve.return_value = mock_raw_page
 
         result = await self.repo.read_page(PageId(Id=page_id))
 
-        self.mock_notion_client.pages.retrieve.assert_awaited_once_with(page_id=page_id)
+        self.mock_notion_client.pages.retrieve.assert_awaited_once_with(page_id=str(page_id))
         self.assertIsInstance(result, Page)
         self.assertEqual(result.Id.Id, page_id)
         self.assertEqual(result.Properties.Title.title[0].text.content, "Test Page")
 
     def test_convert_client_page(self):
         # Arrange
-        page_id = "test-page-id"
+        page_id = UUID('{12345678-1234-5678-1234-567812345678}')
         raw_page_dict = create_mock_api_page(page_id, "Test Page")
         api_page = ApiPage.model_validate(raw_page_dict)
 
@@ -116,13 +111,17 @@ class TestNotionRepoPage(unittest.IsolatedAsyncioTestCase):
     async def test_query_database_single_page(self):
         # Arrange
         mock_response = {
-            "results": [create_mock_api_page("page1", "Page One")],
+            "results": [
+                create_mock_api_page(
+                    "12345678-1234-5678-1234-567812345678",
+                    "Page One"
+                    )],
             "has_more": False,
             "next_cursor": None,
         }
         self.mock_notion_client.data_sources.query.return_value = mock_response
 
-        db_id = "test-db-id"
+        db_id = "22345678-1234-5678-1234-567812345678"
         page_size = 10
         filter_dict = {"property": "Status", "status": {"equals": "In Progress"}}
 
@@ -143,7 +142,9 @@ class TestNotionRepoPage(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(result.next_cursor)
         self.assertEqual(len(result.results), 1)
         self.assertIsInstance(result.results[0], Page)
-        self.assertEqual(result.results[0].Id.Id, "page1")
+        self.assertEqual(
+            result.results[0].Id.Id,
+            UUID('12345678-1234-5678-1234-567812345678}'))
 
     async def test_query_database_paginated(self):
         """This test simulates pagination while the current implementation fetches
@@ -151,14 +152,20 @@ class TestNotionRepoPage(unittest.IsolatedAsyncioTestCase):
         # Arrange
         mock_response_1 = {
             "results": [
-                create_mock_api_page("page1", "Page One"),
-                create_mock_api_page("page2", "Page Two"),
+                create_mock_api_page(
+                     UUID('{12345678-1234-5678-1234-567812345678}'),
+                     "Page One"),
+                create_mock_api_page(
+                     UUID('{22345678-1234-5678-1234-567812345678}'), 
+                     "Page Two"),
             ],
             "has_more": True,
             "next_cursor": "cursor123",
         }
         mock_response_2 = {
-            "results": [create_mock_api_page("page3", "Page Three")],
+            "results": [create_mock_api_page(
+                 UUID('{32345678-1234-5678-1234-567812345678}'), 
+                 "Page Three")],
             "has_more": False,
             "next_cursor": None,
         }
@@ -168,7 +175,7 @@ class TestNotionRepoPage(unittest.IsolatedAsyncioTestCase):
             mock_response_2,
         ]
 
-        db_id = "test-db-id"
+        db_id = UUID('{42345678-1234-5678-1234-567812345678}')
         page_size = 2
 
         # The repo's query_database loops until has_more is false.
@@ -183,8 +190,12 @@ class TestNotionRepoPage(unittest.IsolatedAsyncioTestCase):
             result.next_cursor
         )  # The final result from the repo method
         self.assertEqual(len(result.results), 2)
-        self.assertEqual(result.results[0].Id.Id, "page1")
-        self.assertEqual(result.results[1].Id.Id, "page2")
+        self.assertEqual(
+            result.results[0].Id.Id,
+             UUID('{12345678-1234-5678-1234-567812345678}'))
+        self.assertEqual(
+            result.results[1].Id.Id,
+             UUID('{22345678-1234-5678-1234-567812345678}'))
 
     async def test_create_page_not_implemented(self):
         with self.assertRaises(NotImplementedError):
@@ -214,13 +225,13 @@ class TestNotionRepoJournalPage(unittest.IsolatedAsyncioTestCase):
         self.repo = NotionRepoJournalPage(notion_token="fake_token")
 
     async def test_read_page(self):
-        page_id = "test-journal-page-id"
+        page_id = UUID('{12345678-1234-5678-1234-567812345678}')
         mock_raw_page = create_mock_api_page(page_id, "Test Journal Page")
         self.mock_notion_client.pages.retrieve.return_value = mock_raw_page
 
         result = await self.repo.read_page(PageId(Id=page_id))
 
-        self.mock_notion_client.pages.retrieve.assert_awaited_once_with(page_id=page_id)
+        self.mock_notion_client.pages.retrieve.assert_awaited_once_with(page_id=str(page_id))
         self.assertIsInstance(result, JournalPage)
         self.assertEqual(result.Id.Id, page_id)
         self.assertEqual(
@@ -228,7 +239,7 @@ class TestNotionRepoJournalPage(unittest.IsolatedAsyncioTestCase):
         )
 
     def test_convert_client_page(self):
-        page_id = "test-journal-page-id"
+        page_id = UUID('{12345678-1234-5678-1234-567812345678}')
         raw_page_dict = create_mock_api_page(page_id, "Test Journal Page")
         api_page = ApiPage.model_validate(raw_page_dict)
 
