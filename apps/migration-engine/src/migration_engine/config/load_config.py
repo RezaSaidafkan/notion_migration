@@ -2,6 +2,7 @@ import os
 from typing import Optional
 from uuid import UUID
 
+from common_libs.constants.literal_definitions import JournalJunctionRelations
 from dotenv import dotenv_values
 from pydantic import UUID4, BaseModel, ValidationError
 
@@ -13,7 +14,8 @@ class Config(BaseModel):
     journal_datasource_id: Optional[UUID4]
     target_datasource_id: Optional[UUID4]
     source_parent_page_id: Optional[UUID]
-    pagination_size: int
+    journal_junction_relation: JournalJunctionRelations
+    page_size: int
     semaphore_limit: int
     debug: bool
 
@@ -31,7 +33,8 @@ def get_config() -> Config:
             "journal_datasource_id": env_vars.get("JOURNAL_DATASOURCE_ID") or None,
             "target_datasource_id": env_vars.get("TARGET_DATASOURCE_ID") or None,
             "source_parent_page_id": env_vars.get("SOURCE_PARENT_PAGE_ID") or None,
-            "pagination_size": int(env_vars.get("PAGINATION_SIZE") or "1"),
+            "journal_junction_relation": env_vars.get("JOURNAL_JUNCTION_RELATION") or None,
+            "page_size": int(env_vars.get("PAGE_SIZE") or "1"),
             "semaphore_limit": int(env_vars.get("SEMAPHORE_LIMIT") or "10"),
             "debug": (env_vars.get("DEBUG") or "False").lower() in ("true", "1")
             }

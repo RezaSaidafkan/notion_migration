@@ -10,6 +10,9 @@ JOURNAL_DATASOURCE_ID
 # Target Data Source ID
 TARGET_DATASOURCE_ID
 
+# The Junction Relation Property Name in the Journal Datasource
+JOURNAL_JUNCTION_RELATION
+
 # Parent Page ID (which exists in the source database)
 SOURCE_PARENT_PAGE_ID
 

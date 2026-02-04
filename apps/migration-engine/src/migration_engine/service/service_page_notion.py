@@ -6,7 +6,10 @@ from typing import List, Union, cast
 
 from common_libs.constants.literal_definitions import (
     DatasourceInfo,
+    ExecutionContext,
+    JournalJunctionRelations,
     JournalRelations,
+    MigrationContext,
     SourceRelations,
 )
 from common_libs.models.client_models import (
@@ -20,7 +23,6 @@ from common_libs.models.client_models import (
     R,
 )
 
-from migration_engine.config.load_config import GLOBAL_CONFIG
 from migration_engine.repo.repo_page_interface import RepositoryError
 from migration_engine.repo.repo_page_notion import (
     NotionRepoJournalPage,
@@ -35,12 +37,10 @@ from migration_engine.utils.timer import _timed
 
 logger = logging.getLogger(__name__)
 
-
-@dataclass(frozen=True)
-class ProcessingContext:
-    source_database_info: DatasourceInfo
-    journal_database_info: DatasourceInfo
-    journal_relation: JournalRelations
+@dataclass
+class ServiceExecutionContext:
+    task_group: asyncio.TaskGroup
+    execution_context: ExecutionContext
 
 
 class ServicePage(ServicePageInterface[K, P, DB, R]):
@@ -78,10 +78,10 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         page: P,
         datasource_info: DatasourceInfo,
         datasource_type: DB,
-        relation: Union[SourceRelations, JournalRelations],
-        tg: asyncio.TaskGroup,
+        relation: Union[SourceRelations, JournalRelations, JournalJunctionRelations],
+        service_execution_context: ServiceExecutionContext
     ) -> Task[List[P]]:
-        return tg.create_task(
+        return service_execution_context.task_group.create_task(
             _timed(
                 self.query_database(
                     datasource_info=datasource_info,
@@ -90,6 +90,7 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
                         "property": relation.value,
                         "relation": {"contains": str(page.Id.Id)},
                     },
+                    execution_context=service_execution_context.execution_context
                 ),
                 page,
                 "query_database:sub_pages",
@@ -101,7 +102,7 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         page: P,
         datasource_info: DatasourceInfo,
         relation: SourceRelations,
-        tg: asyncio.TaskGroup,
+        service_execution_context: ServiceExecutionContext
     ) -> Task[List[P]]:
         return cast(
             Task[List[P]],
@@ -110,7 +111,7 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
                 datasource_info=datasource_info,
                 datasource_type=cast(DB, Page),
                 relation=relation,
-                tg=tg,
+                service_execution_context=service_execution_context,
             ),
         )
 
@@ -118,8 +119,8 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         self,
         page: P,
         datasource_info: DatasourceInfo,
-        relation: JournalRelations,
-        tg: asyncio.TaskGroup,
+        relation: Union[JournalRelations, JournalJunctionRelations],
+        service_execution_context: ServiceExecutionContext
     ) -> Task[List[P]]:
         return cast(
             Task[List[P]],
@@ -128,12 +129,16 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
                 datasource_info=datasource_info,
                 datasource_type=cast(DB, JournalPage),
                 relation=relation,
-                tg=tg,
+                service_execution_context=service_execution_context,
             ),
         )
 
     async def query_database(
-        self, datasource_info: DatasourceInfo, datasource_type: DB, filter_query: dict
+        self,
+        datasource_info: DatasourceInfo,
+        datasource_type: DB,
+        filter_query: dict,
+        execution_context: ExecutionContext
     ) -> List[P]:
         repo: NotionRepository
         if datasource_type is Page:
@@ -152,13 +157,18 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
             try:
                 pagination = await repo.query_database(
                     data_source_id=datasource_info.DatasourceId,
-                    page_size=GLOBAL_CONFIG.pagination_size,
                     filter_query=filter_query,
                     cursor=cursor,
+                    execution_context=execution_context
                 )
                 pages.extend(cast(List[P], pagination.results))
                 cursor = pagination.next_cursor
                 exhausted = not pagination.has_more
+                if execution_context.DEBUG:
+                    if exhausted:
+                        logger.debug("Paginated results is exhausted")
+                    else:
+                        logger.debug("Paginating result to cursor: %s", cursor)
             except RepositoryError as e:
                 cursor_msg = f" at cursor: {cursor}" if cursor else ""
                 logger.exception(
@@ -169,10 +179,9 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
 
     async def build_page_hierarchy(
         self,
+        migration_context: MigrationContext,
+        execution_context: ExecutionContext,
         root_page: P,
-        source_datasource_info: DatasourceInfo,
-        journal_datasource_info: DatasourceInfo,
-        journal_relation: JournalRelations,
         level: int = 0,
     ) -> List[P]:  # pylint: disable=too-many-positional-arguments
         """Return pages whose 'Ancestor' relation contains the given parent.
@@ -181,22 +190,23 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         delegates to the repository's generic `query_database` method.
         """
         collected: list[P] = []
-        context = ProcessingContext(
-            source_database_info=source_datasource_info,
-            journal_database_info=journal_datasource_info,
-            journal_relation=journal_relation,
-        )
+
+        if execution_context.DEBUG:
+            logger.debug("here")
 
         try:
             async with asyncio.TaskGroup() as tg:
+                service_execution_context = ServiceExecutionContext(
+                    task_group=tg,
+                    execution_context=execution_context)
                 tg.create_task(
                     _timed(
                         self.process_source_recursive(
                             root_page,
-                            context,
+                            migration_context,
+                            service_execution_context,
                             level,
                             collected,
-                            tg,
                         ),
                         root_page,
                         "root_page",
@@ -213,25 +223,25 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
     async def process_source_recursive(
         self,
         page: P,
-        context: ProcessingContext,
+        migration_context: MigrationContext,
+        service_execution_context: ServiceExecutionContext,
         level: int,
-        collected: list[P],
-        tg: asyncio.TaskGroup,
+        collected: list[P]
     ):
         try:
             # create the coroutines and run them concurrently with timing & rate limited
             sub_pages_tasks: Task[List[P]] = self.get_source_pages(
                 page=page,
-                datasource_info=context.source_database_info,
+                datasource_info=migration_context.SOURCE_DATASOURCE_INFO,
                 relation=SourceRelations.ANCESTORS,
-                tg=tg,
+                service_execution_context=service_execution_context,
             )  # type: ignore
 
             journal_database_tasks: Task[List[P]] = self.get_journal_pages(
                 page=page,
-                datasource_info=context.journal_database_info,
-                relation=context.journal_relation,
-                tg=tg,
+                datasource_info=migration_context.JOURNAL_DATASOURCE_INFO,
+                relation=migration_context.JOURNAL_JUNCTION_RELATION,
+                service_execution_context=service_execution_context,
             )  # type: ignore
 
             sub_pages, journal_database_pages = await asyncio.gather(
@@ -241,30 +251,29 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
 
             if journal_database_pages is not None:
                 page.Relations.Journals = journal_database_pages
-                for journ_page in journal_database_pages:
-                    tg.create_task(
+                for journal_page in journal_database_pages:
+                    service_execution_context.task_group.create_task(
                         self.process_journal_recursive(
-                            journ_page,
-                            context.journal_database_info,
-                            context.journal_relation,
-                            tg,
+                            journal_page,
+                            migration_context,
+                            service_execution_context
                         ),
                     )
 
             if sub_pages is not None:
                 page.Relations.Descendants = sub_pages
                 for sub_page in sub_pages:
-                    tg.create_task(
+                    service_execution_context.task_group.create_task(
                         self.process_source_recursive(
                             sub_page,
-                            context,
+                            migration_context,
+                            service_execution_context,
                             level + 1,
-                            collected,
-                            tg,
+                            collected
                         ),
                     )
 
-            if level == 1 and GLOBAL_CONFIG.debug:
+            if level == 1 and service_execution_context.execution_context.DEBUG:
                 logger.info("The page hierarchy:\n%s", page)
                 collected.append(page)
         except (RepositoryError, ServiceError) as e:
@@ -274,9 +283,8 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
     async def process_journal_recursive(
         self,
         page: P,
-        journal_database_info: DatasourceInfo,
-        journal_relation: JournalRelations,
-        tg: asyncio.TaskGroup,
+        migration_context: MigrationContext,
+        service_execution_context: ServiceExecutionContext,
     ):
         """Process a journal page recursively, fetching its sub-journal pages.
 
@@ -285,9 +293,9 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
         """
         sub_journal_pages: List[P] = await self.get_journal_pages(
             page=page,
-            datasource_info=journal_database_info,
+            datasource_info=migration_context.JOURNAL_DATASOURCE_INFO,
             relation=JournalRelations.ANCESTORS,
-            tg=tg,
+            service_execution_context=service_execution_context,
         )
 
         if sub_journal_pages:
@@ -296,12 +304,11 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
                 Ancestors=cast(List[P], [page]),
             )
             for journ_page in sub_journal_pages:
-                tg.create_task(
+                service_execution_context.task_group.create_task(
                     self.process_journal_recursive(
                         journ_page,
-                        journal_database_info,
-                        journal_relation,
-                        tg,
+                        migration_context,
+                        service_execution_context,
                     ),
                 )
 
@@ -323,8 +330,8 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
     async def migrate_page(
         self,
         page: P,
-        source_datasource_info: DatasourceInfo,
-        target_datasource_info: DatasourceInfo,
+        migration_context: MigrationContext,
+        execution_context: ExecutionContext
     ) -> None:
         raise NotImplementedError(
             "This method should be implemented in the service layer."
@@ -333,8 +340,8 @@ class ServicePage(ServicePageInterface[K, P, DB, R]):
     async def migrate_pages(
         self,
         pages: List[P],
-        source_datasource_info: DatasourceInfo,
-        target_datasource_info: DatasourceInfo,
+        migration_context: MigrationContext,
+        execution_context: ExecutionContext
     ) -> None:
         raise NotImplementedError(
             "This method should be implemented in the service layer."

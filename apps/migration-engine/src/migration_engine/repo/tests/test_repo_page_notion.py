@@ -11,6 +11,7 @@ from common_libs.models.client_models import (JournalPage,
 from migration_engine.repo.repo_page_notion import (ClientSingleton,
                                                     NotionRepoJournalPage,
                                                     NotionRepoPage)
+from common_libs.constants.literal_definitions import ExecutionContext
 
 
 def create_mock_api_page(page_id: UUID, title: str) -> dict:
@@ -76,7 +77,7 @@ class TestNotionRepoPage(unittest.IsolatedAsyncioTestCase):
 
         self.mock_notion_client = AsyncMock()
         mock_notion_client_class.return_value = self.mock_notion_client
-        self.repo = NotionRepoPage(notion_token="fake_token")
+        self.repo = NotionRepoPage(notion_token="fake_token", debug=True)
 
     async def test_read_page(self):
         page_id = UUID('{12345678-1234-5678-1234-567812345678}')
@@ -122,20 +123,24 @@ class TestNotionRepoPage(unittest.IsolatedAsyncioTestCase):
         self.mock_notion_client.data_sources.query.return_value = mock_response
 
         db_id = "22345678-1234-5678-1234-567812345678"
-        page_size = 10
-        filter_dict = {"property": "Status", "status": {"equals": "In Progress"}}
+        execution_context = ExecutionContext(DEBUG=True, PAGE_SIZE=1)
+        
+        filter_query = {
+            "property": "Status",
+            "status": {"equals": "In Progress"},
+            }
 
         # Act
         result = await self.repo.query_database(
             data_source_id=db_id,
-            page_size=page_size,
-            filter_query=filter_dict,
+            filter_query=filter_query,
+            execution_context=execution_context,
             cursor=None,
         )
 
         # Assert
         self.mock_notion_client.data_sources.query.assert_awaited_once_with(
-            db_id, start_cursor=None, filter=filter_dict, page_size=page_size
+            db_id, start_cursor=None, filter=filter_query, page_size=execution_context.PAGE_SIZE
         )
         self.assertIsInstance(result, PaginationResult)
         self.assertFalse(result.has_more)
@@ -176,12 +181,12 @@ class TestNotionRepoPage(unittest.IsolatedAsyncioTestCase):
         ]
 
         db_id = UUID('{42345678-1234-5678-1234-567812345678}')
-        page_size = 2
+        execution_context = ExecutionContext(PAGE_SIZE=10, DEBUG=True)
 
         # The repo's query_database loops until has_more is false.
         # We expect two calls to the mock.
         result = await self.repo.query_database(
-            data_source_id=db_id, page_size=page_size, filter_query={}, cursor=None
+            data_source_id=db_id, execution_context=execution_context, filter_query={}, cursor=None
         )
 
         self.assertEqual(self.mock_notion_client.data_sources.query.call_count, 1)
@@ -222,7 +227,8 @@ class TestNotionRepoJournalPage(unittest.IsolatedAsyncioTestCase):
 
         self.mock_notion_client = AsyncMock()
         mock_notion_client_class.return_value = self.mock_notion_client
-        self.repo = NotionRepoJournalPage(notion_token="fake_token")
+        
+        self.repo = NotionRepoJournalPage("some_api_key", True)
 
     async def test_read_page(self):
         page_id = UUID('{12345678-1234-5678-1234-567812345678}')

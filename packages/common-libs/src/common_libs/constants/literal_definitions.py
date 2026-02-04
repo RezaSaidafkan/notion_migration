@@ -9,12 +9,6 @@ class JournalRelations(enum.Enum):
     DESCENDANTS = "Descendants"
     BACKTRACK = "Backtrack"
     FORWARDTRACK = "Forwardtrack"
-    LIFE_STYLE = "Life Style"
-    NUCLEUS = "Nucleus"
-    SPORTS = "Sports"
-    TOUCH_DOWN = "Touchdown"
-    EXCURSIONS = "Excursions"
-    BELIEVES = "Believes"
 
 
 class SourceRelations(enum.Enum):
@@ -23,6 +17,15 @@ class SourceRelations(enum.Enum):
     BACKTRACK = "Backtrack"
     FORWARDTRACK = "Forwardtrack"
     JOURNALS = "Journals"
+
+
+class JournalJunctionRelations(enum.Enum):
+    LIFE_STYLE = "Life Style"
+    NUCLEUS = "Nucleus"
+    SPORTS = "Sports"
+    TOUCH_DOWN = "Touchdown"
+    EXCURSIONS = "Excursions"
+    BELIEVES = "Believes"
 
 
 class DatabaseName(enum.Enum):
@@ -34,7 +37,19 @@ class SourceParentPageId(enum.Enum):
     SOURCE_PARENT_PAGE = "SOURCE_PARENT_PAGE"
 
 
-PAGINATION_SIZE = 20
+@dataclass
+class ExecutionContext:
+    PAGE_SIZE: int
+    DEBUG: bool
+
+
+@dataclass
+class MigrationContext:
+    NOTION_API_KEY: str
+    SOURCE_DATASOURCE_INFO: DatasourceInfo
+    TARGET_DATASOURCE_INFO: DatasourceInfo
+    JOURNAL_DATASOURCE_INFO: DatasourceInfo
+    JOURNAL_JUNCTION_RELATION: JournalJunctionRelations
 
 
 @dataclass

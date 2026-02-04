@@ -32,37 +32,31 @@ class TestTimer(unittest.IsolatedAsyncioTestCase):
         label = "test_label"
 
         with patch("builtins.print") as mock_print:
-            with patch("migration_engine.utils.timer.GLOBAL_CONFIG") as mock_config:
-                mock_config.debug = True
-
-                # Create a mock page inside the test to avoid issues with global scope
-                mock_page = create_mock_page(
-                    UUID('{12345678-1234-5678-1234-567812345678}'),
-                    "Test Page")
-                result = await _timed(mock_coro(), mock_page, label)
-                mock_coro.assert_awaited_once()
-                self.assertEqual(result, "coro_result")
-                mock_print.assert_called_once()
-                self.assertIn("[TIMING]", mock_print.call_args[0][0])
-                self.assertIn(label, mock_print.call_args[0][0])
-                self.assertIn(
-                    str(mock_page.Id.Id), mock_print.call_args[0][0]
-                )
+            # Create a mock page inside the test to avoid issues with global scope
+            mock_page = create_mock_page(
+                UUID('{12345678-1234-5678-1234-567812345678}'),
+                "Test Page")
+            result = await _timed(mock_coro(), mock_page, label, True)
+            mock_coro.assert_awaited_once()
+            self.assertEqual(result, "coro_result")
+            mock_print.assert_called_once()
+            self.assertIn("[TIMING]", mock_print.call_args[0][0])
+            self.assertIn(label, mock_print.call_args[0][0])
+            self.assertIn(
+                str(mock_page.Id.Id), mock_print.call_args[0][0]
+            )
 
     async def test_timed_debug_off(self):
         mock_coro = AsyncMock(return_value="coro_result")
         label = "test_label"
 
         with patch("builtins.print") as mock_print:
-            with patch("migration_engine.utils.timer.GLOBAL_CONFIG") as mock_config:
-                mock_config.debug = False
+            # Create a mock page inside the test to avoid issues with global scope
+            mock_page = create_mock_page(
+                UUID('{12345678-1234-5678-1234-567812345678}'),
+                "Test Page")
+            result = await _timed(mock_coro(), mock_page, label, False)
 
-                # Create a mock page inside the test to avoid issues with global scope
-                mock_page = create_mock_page(
-                    UUID('{12345678-1234-5678-1234-567812345678}'),
-                    "Test Page")
-                result = await _timed(mock_coro(), mock_page, label)
-
-                mock_coro.assert_awaited_once()
-                self.assertEqual(result, "coro_result")
-                mock_print.assert_not_called()
+            mock_coro.assert_awaited_once()
+            self.assertEqual(result, "coro_result")
+            mock_print.assert_not_called()

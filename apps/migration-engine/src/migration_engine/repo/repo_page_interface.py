@@ -1,5 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Generic, TypeVar
+from uuid import UUID
+
+from common_libs.constants.literal_definitions import ExecutionContext
 
 T = TypeVar("T")  # CommonPage
 K = TypeVar("K")  # page id
@@ -19,11 +22,10 @@ class RepositoryInterface(Generic[K, T, R], ABC):
     @abstractmethod
     async def query_database(
         self,
-        data_source_id: str,
-        page_size: int,
+        data_source_id: UUID,
         filter_query: Dict[str, Any],
-        cursor: str | None,
-        debug: bool,
+        execution_context: ExecutionContext,
+        cursor: str | None = None
     ) -> R:
         pass
 

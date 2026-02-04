@@ -1,6 +1,7 @@
 # pylint: disable=all
 import unittest
 from unittest.mock import AsyncMock, call, patch
+from uuid import UUID
 
 from common_libs.constants.literal_definitions import (DatasourceInfo,
                                                        JournalRelations)
@@ -10,7 +11,8 @@ from common_libs.models.client_models import (JournalPage,
                                               PageId, PageProperties,
                                               PaginationResult)
 from migration_engine.service.service_page_notion import ServicePage
-from uuid import UUID
+from common_libs.constants.literal_definitions import ExecutionContext, MigrationContext, JournalJunctionRelations
+
 
 def create_mock_page(
     page_id: UUID, title: str, model: type[Page] | type[JournalPage] = Page
@@ -70,6 +72,7 @@ class TestServicePage(unittest.IsolatedAsyncioTestCase):
 
     async def test_query_database_for_source_pages(self):
         """Test querying for Page types uses the source repo."""
+        # Arrange
         db_info = DatasourceInfo(DatasourceId="source-db")
         mock_pages = [
             create_mock_page(
@@ -79,17 +82,21 @@ class TestServicePage(unittest.IsolatedAsyncioTestCase):
         self.mock_repo_source.query_database.return_value = PaginationResult(
             results=mock_pages, has_more=False, next_cursor=None
         )
+        execution_context = ExecutionContext(PAGE_SIZE=10, DEBUG=1)
 
+        # Act
         result = await self.service.query_database(
-            datasource_info=db_info, datasource_type=Page, filter_query={}
+            datasource_info=db_info, datasource_type=Page, filter_query={}, execution_context=execution_context
         )
 
+        # Assert
         self.mock_repo_source.query_database.assert_awaited_once()
         self.mock_repo_journal.query_database.assert_not_awaited()
         self.assertEqual(result, mock_pages)
 
     async def test_query_database_for_journal_pages(self):
         """Test querying for JournalPage types uses the journal repo."""
+        # Arrange
         db_info = DatasourceInfo(DatasourceId="journal-db")
         mock_journal_pages = [
             create_mock_page(
@@ -99,11 +106,15 @@ class TestServicePage(unittest.IsolatedAsyncioTestCase):
         self.mock_repo_journal.query_database.return_value = PaginationResult(
             results=mock_journal_pages, has_more=False, next_cursor=None
         )
-
+        
+        execution_context = ExecutionContext(PAGE_SIZE=10, DEBUG=True)
+        
+        # Act
         result = await self.service.query_database(
-            datasource_info=db_info, datasource_type=JournalPage, filter_query={}
+            datasource_info=db_info, datasource_type=JournalPage, filter_query={}, execution_context=execution_context
         )
 
+        # Assert
         self.mock_repo_journal.query_database.assert_awaited_once()
         self.mock_repo_source.query_database.assert_not_awaited()
         self.assertEqual(result, mock_journal_pages)
@@ -127,10 +138,11 @@ class TestServicePage(unittest.IsolatedAsyncioTestCase):
             PaginationResult(
                 results=[mock_page2], has_more=False, next_cursor=None),
         ]
+        execution_context = ExecutionContext(PAGE_SIZE=10, DEBUG=True)
 
         # Act
         result = await self.service.query_database(
-            datasource_info=db_info, datasource_type=Page, filter_query={}
+            datasource_info=db_info, datasource_type=Page, filter_query={}, execution_context=execution_context
         )
 
         # Assert
@@ -141,14 +153,14 @@ class TestServicePage(unittest.IsolatedAsyncioTestCase):
             [
                 call(
                     data_source_id=db_info.DatasourceId,
-                    page_size=unittest.mock.ANY,
                     filter_query={},
+                    execution_context=execution_context,
                     cursor=None,
                 ),
                 call(
                     data_source_id=db_info.DatasourceId,
-                    page_size=unittest.mock.ANY,
                     filter_query={},
+                    execution_context=execution_context,
                     cursor="cursor1",
                 ),
             ]
@@ -168,13 +180,20 @@ class TestServicePage(unittest.IsolatedAsyncioTestCase):
             UUID('{32345678-1234-5678-1234-567812345678}'),
             "Journal Page 1", model=JournalPage)
 
-        source_db = DatasourceInfo(
-            DatasourceId=UUID('{42345678-1234-5678-1234-567812345678}'))
-        journal_db = DatasourceInfo(
-            DatasourceId=UUID('{52345678-1234-5678-1234-567812345678}'))
+        migration_context = MigrationContext(
+            NOTION_API_KEY="",
+            SOURCE_DATASOURCE_INFO=DatasourceInfo(
+                DatasourceId=UUID('{42345678-1234-5678-1234-567812345678}')),
+            JOURNAL_DATASOURCE_INFO=DatasourceInfo(
+                DatasourceId=UUID('{52345678-1234-5678-1234-567812345678}')),
+            TARGET_DATASOURCE_INFO=DatasourceInfo(
+                UUID('{62345678-1234-5678-1234-567812345678}')),
+            JOURNAL_JUNCTION_RELATION=JournalJunctionRelations.LIFE_STYLE)
+        
+        execution_context = ExecutionContext(PAGE_SIZE=10, DEBUG=True)
 
         # Mock query_database to control the hierarchy
-        async def mock_query_db(datasource_info, datasource_type, filter_query):
+        async def mock_query_db(datasource_info, datasource_type, filter_query, execution_context):
             page_id = filter_query["relation"]["contains"]
             if datasource_type == Page:
                 if page_id == str(root_page_uuid):
@@ -215,7 +234,7 @@ class TestServicePage(unittest.IsolatedAsyncioTestCase):
             ) as mock_process_source:
                 # Act
                 await self.service.build_page_hierarchy(
-                    root_page, source_db, journal_db, JournalRelations.BACKTRACK
+                    migration_context, execution_context, root_page
                 )
 
                 # Assertions
@@ -227,20 +246,22 @@ class TestServicePage(unittest.IsolatedAsyncioTestCase):
                 mock_query.assert_has_calls(
                     [
                         call(
-                            datasource_info=source_db,
+                            datasource_info=migration_context.SOURCE_DATASOURCE_INFO,
                             datasource_type=Page,
                             filter_query={
                                 "property": "Ancestors",
                                 "relation": {"contains": str(root_page_uuid)},
                             },
+                            execution_context=execution_context
                         ),
                         call(
-                            datasource_info=journal_db,
+                            datasource_info=migration_context.JOURNAL_DATASOURCE_INFO,
                             datasource_type=JournalPage,
                             filter_query={
-                                "property": "Backtrack",
+                                "property": migration_context.JOURNAL_JUNCTION_RELATION.value,
                                 "relation": {"contains": str(root_page_uuid)},
                             },
+                            execution_context=execution_context
                         ),
                     ],
                     any_order=True,
