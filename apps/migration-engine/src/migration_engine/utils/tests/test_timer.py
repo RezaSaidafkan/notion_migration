@@ -3,17 +3,17 @@ from unittest.mock import AsyncMock, patch
 from uuid import UUID
 
 from common_libs.models.api_models import TitleItem, TitleProperty, TitleText
-from common_libs.models.client_models import Page, PageId, PageProperties
-from migration_engine.utils.timer import _timed
+from common_libs.models.client_models import TaskPage, PageId, TaskProperties
+from migration_engine.utils.timer import timed
 
-def create_mock_page(page_id: UUID, title: str) -> Page:
+def create_mock_page(page_id: UUID, title: str) -> TaskPage:
     """Helper to create a mock Page."""
     mock_title = TitleProperty(
         id="title_id",
         type="title",
         title=[TitleItem(type="text", text=TitleText(content=title, link=None))],
     )
-    properties = PageProperties(
+    properties = TaskProperties(
         Title=mock_title,
         Type=None,
         Assignee=None,
@@ -23,7 +23,7 @@ def create_mock_page(page_id: UUID, title: str) -> Page:
         Timeline=None,
         Description=None,
     )
-    return Page(Id=PageId(Id=page_id), Icon=None, Properties=properties)
+    return TaskPage(Id=PageId(Id=page_id), Icon=None, Properties=properties)
 
 
 class TestTimer(unittest.IsolatedAsyncioTestCase):
@@ -36,7 +36,7 @@ class TestTimer(unittest.IsolatedAsyncioTestCase):
             mock_page = create_mock_page(
                 UUID('{12345678-1234-5678-1234-567812345678}'),
                 "Test Page")
-            result = await _timed(mock_coro(), mock_page, label, True)
+            result = await timed(mock_coro(), mock_page, label, True)
             mock_coro.assert_awaited_once()
             self.assertEqual(result, "coro_result")
             mock_print.assert_called_once()
@@ -55,7 +55,7 @@ class TestTimer(unittest.IsolatedAsyncioTestCase):
             mock_page = create_mock_page(
                 UUID('{12345678-1234-5678-1234-567812345678}'),
                 "Test Page")
-            result = await _timed(mock_coro(), mock_page, label, False)
+            result = await timed(mock_coro(), mock_page, label, False)
 
             mock_coro.assert_awaited_once()
             self.assertEqual(result, "coro_result")

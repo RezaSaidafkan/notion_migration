@@ -1,23 +1,28 @@
 import logging
 from abc import abstractmethod
-from typing import Any, Dict, Generic, List
+from dataclasses import dataclass
+from typing import Generic, List
 from uuid import UUID
 
-from common_libs.constants.literal_definitions import ExecutionContext
+from common_libs.constants.literal_definitions import (
+    ExecutionContext,
+    RelationDefinitions,
+)
 from common_libs.models.api_models import ApiPage
 from common_libs.models.client_models import (
+    B,
     JournalPage,
-    JournalPageProperties,
-    P,
-    Page,
+    JournalProperties,
     PageId,
-    PageProperties,
     PaginationResult,
+    TaskPage,
+    TaskProperties,
 )
 from notion_client import APIResponseError
 from notion_client import AsyncClient as Client
 from pydantic import ValidationError
 
+from migration_engine.repo.notion_object_mapping.notion_object_map import translate
 from migration_engine.repo.repo_page_interface import (
     RepositoryError,
     RepositoryInterface,
@@ -43,13 +48,13 @@ class ClientSingleton:
 
 
 class NotionRepository(
-    Generic[P], RepositoryInterface[PageId, P, PaginationResult[P]], ClientSingleton
+    Generic[B], RepositoryInterface[PageId, B, RelationDefinitions], ClientSingleton
 ):
-    async def read_page(self, page_id: PageId, debug: bool=False) -> P:
+    async def read_page(self, page_id: PageId, debug: bool=False) -> B:
         try:
             raw_result = await self.notion.pages.retrieve(page_id=str(page_id.Id))
             api_page = ApiPage(**raw_result)
-            page: P = self.convert_client_page(api_page)
+            page = self.convert_client_page(api_page)
             return page
         except APIResponseError as ae:
             logger.exception(ae)
@@ -64,19 +69,21 @@ class NotionRepository(
             raise RepositoryError("Unknown error happend") from e
 
     @abstractmethod
-    def convert_client_page(self, result: ApiPage) -> P:
+    def convert_client_page(self, result: ApiPage) -> B:
         pass
 
     # pylint: disable=too-many-positional-arguments, too-many-arguments
     @rate_limited(max_rate=3, time_period=1)
     async def query_database(
         self,
+        page_id: PageId,
         data_source_id: UUID,
-        filter_query: Dict[str, Any],
+        relation: RelationDefinitions,
         execution_context: ExecutionContext,
         cursor: str | None = None
-    ) -> PaginationResult[P]:
+    ) -> PaginationResult[B]:
         try:
+            filter_query = translate(relation=relation, page_id=page_id)
             query = {
                 "start_cursor": cursor,
                 "filter": filter_query or {},
@@ -89,10 +96,10 @@ class NotionRepository(
                     "Query to Notion CLient:\n%s\nResponse from Notion Client:\n%s", query, resp)
 
             results = [ApiPage(**result) for result in resp["results"]]
-            converted_results: List[P] = [
+            converted_results: List[B] = [
                 self.convert_client_page(apiPage) for apiPage in results
             ]
-            return PaginationResult[P](
+            return PaginationResult[B](
                 results=converted_results,
                 has_more=resp["has_more"],
                 next_cursor=resp.get("next_cursor"),
@@ -115,23 +122,23 @@ class NotionRepository(
             logging.exception("Unknown error happend for:\n%s\n%s", query, e)
             raise RepositoryError(f"Unknown error happend for:\n{query}") from e
 
-    async def create_page(self, page: P, debug: bool) -> bool:
+    async def create_page(self, page: B, debug: bool) -> bool:
         raise NotImplementedError(
             "Creating pages is not implemented in NotionClientAPI"
         )
 
-    async def update_page(self, page: P, debug: bool) -> bool:
+    async def update_page(self, page: B, debug: bool) -> bool:
         raise NotImplementedError(
             "Updating pages is not implemented in NotionClientAPI"
         )
 
 
-class NotionRepoPage(NotionRepository[Page]):
-    def convert_client_page(self, result: ApiPage) -> Page:
+class NotionRepoSource(NotionRepository[TaskPage]):
+    def convert_client_page(self, result: ApiPage) -> TaskPage:
         try:
             props = result.properties
             # Build client-facing properties using the typed dataclasses
-            client_props = PageProperties(
+            client_props = TaskProperties(
                 Type=props.Type,
                 Title=props.Title,
                 Assignee=props.Assignee,
@@ -141,7 +148,7 @@ class NotionRepoPage(NotionRepository[Page]):
                 Timeline=props.Timeline,
                 Description=props.Description,
             )
-            return Page(
+            return TaskPage(
                 Id=PageId(Id=result.id), Icon=result.icon, Properties=client_props
             )
         except ValidationError as e:
@@ -150,13 +157,13 @@ class NotionRepoPage(NotionRepository[Page]):
             ) from e
 
 
-class NotionRepoJournalPage(NotionRepository[JournalPage]):
+class NotionRepoJournal(NotionRepository[JournalPage]):
     def convert_client_page(self, result: ApiPage) -> JournalPage:
         try:
             props = result.properties
 
             # Build client-facing properties using the typed dataclasses
-            client_props = JournalPageProperties(
+            client_props = JournalProperties(
                 Type=props.Type,
                 Title=props.Title,
                 Status=props.Status,
@@ -170,3 +177,9 @@ class NotionRepoJournalPage(NotionRepository[JournalPage]):
             raise RepositoryError(
                 f"Failed to parse API response to JournalPage:\n{e}\n{result}"
             ) from e
+
+
+@dataclass
+class RepositoryDirectInjection:
+    source_repo: NotionRepoSource
+    journal_repo: NotionRepoJournal

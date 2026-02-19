@@ -1,25 +1,10 @@
 # pylint: disable = invalid-name
 import enum
 from dataclasses import dataclass
-from uuid import UUID
+from typing import Union
 
 
-class JournalRelations(enum.Enum):
-    ANCESTORS = "Ancestors"
-    DESCENDANTS = "Descendants"
-    BACKTRACK = "Backtrack"
-    FORWARDTRACK = "Forwardtrack"
-
-
-class SourceRelations(enum.Enum):
-    ANCESTORS = "Ancestors"
-    DESCENDANTS = "Descendants"
-    BACKTRACK = "Backtrack"
-    FORWARDTRACK = "Forwardtrack"
-    JOURNALS = "Journals"
-
-
-class JournalJunctionRelations(enum.Enum):
+class JunctionRelationDefinition(enum.Enum):
     LIFE_STYLE = "Life Style"
     NUCLEUS = "Nucleus"
     SPORTS = "Sports"
@@ -28,13 +13,19 @@ class JournalJunctionRelations(enum.Enum):
     BELIEVES = "Believes"
 
 
-class DatabaseName(enum.Enum):
-    SOURCE = "Source"
-    JOURNAL = "Journal"
+class JournalRelationsDefinition(enum.Enum):
+    ANCESTOR = "Ancestor"
+    DESCENDANTS = "Descendants"
+    BACKTRACK = "Backtrack"
+    FORWARDTRACK = "Forwardtrack"
 
 
-class SourceParentPageId(enum.Enum):
-    SOURCE_PARENT_PAGE = "SOURCE_PARENT_PAGE"
+class TaskRelationsDefinition(enum.Enum):
+    ANCESTORS = "Ancestors"
+    DESCENDANTS = "Descendants"
+    BACKTRACK = "Backtrack"
+    FORWARDTRACK = "Forwardtrack"
+    JOURNALS = "Journals"
 
 
 @dataclass
@@ -43,15 +34,7 @@ class ExecutionContext:
     DEBUG: bool
 
 
-@dataclass
-class MigrationContext:
-    NOTION_API_KEY: str
-    SOURCE_DATASOURCE_INFO: DatasourceInfo
-    TARGET_DATASOURCE_INFO: DatasourceInfo
-    JOURNAL_DATASOURCE_INFO: DatasourceInfo
-    JOURNAL_JUNCTION_RELATION: JournalJunctionRelations
-
-
-@dataclass
-class DatasourceInfo:
-    DatasourceId: UUID
+RelationDefinitions = Union[
+    "TaskRelationsDefinition",
+    "JournalRelationsDefinition",
+    "JunctionRelationDefinition"]

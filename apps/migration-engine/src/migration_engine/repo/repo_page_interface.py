@@ -1,38 +1,36 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Generic, TypeVar
+from typing import Generic
 from uuid import UUID
 
 from common_libs.constants.literal_definitions import ExecutionContext
-
-T = TypeVar("T")  # CommonPage
-K = TypeVar("K")  # page id
-R = TypeVar("R")  # Pagination result
+from common_libs.models.client_models import RD, B, K, PaginationResult
 
 
 class RepositoryError(Exception):
     """Base Repository Layer Error."""
 
 
-class RepositoryInterface(Generic[K, T, R], ABC):
+class RepositoryInterface(Generic[K, B, RD], ABC):
     @abstractmethod
-    async def read_page(self, page_id: K, debug: bool = False) -> T:
+    async def read_page(self, page_id: K, debug: bool = False) -> B:
         pass
 
     # pylint: disable=too-many-positional-arguments, too-many-arguments
     @abstractmethod
     async def query_database(
         self,
+        page_id: K,
         data_source_id: UUID,
-        filter_query: Dict[str, Any],
+        relation: RD,
         execution_context: ExecutionContext,
         cursor: str | None = None
-    ) -> R:
+    ) -> PaginationResult[B]:
         pass
 
     @abstractmethod
-    async def create_page(self, page: T, debug: bool) -> bool:
+    async def create_page(self, page: B, debug: bool) -> bool:
         pass
 
     @abstractmethod
-    async def update_page(self, page: T, debug: bool) -> bool:
+    async def update_page(self, page: B, debug: bool) -> bool:
         pass

@@ -1,10 +1,10 @@
 from time import perf_counter
-from typing import Any
+from typing import Any, Awaitable
 
-from common_libs.models.client_models import P
+from common_libs.models.client_models import CommonPage
 
 
-async def _timed(coro, page: P, label: str, debug: bool = False) -> Any:
+async def timed(coro: Awaitable[Any], page: CommonPage, label: str, debug: bool = False) -> Any:
     if debug:
         t0 = perf_counter()
         res = await coro
