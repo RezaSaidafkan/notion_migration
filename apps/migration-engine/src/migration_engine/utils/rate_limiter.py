@@ -17,7 +17,7 @@ class rate_limited:
         return cls.singleton_instance[cls]
 
     def __call__(self, coro: Callable[..., Any]) -> Any:
-        @wraps(self.__call__)
+        @wraps(coro)
         async def wrapper(*args, **kwargs) -> Any:
             async with self._rate_limiter:
                 return await coro(*args, **kwargs)

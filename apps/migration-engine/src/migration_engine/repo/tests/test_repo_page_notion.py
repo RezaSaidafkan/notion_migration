@@ -9,10 +9,11 @@ from common_libs.models.client_models import (PageId,
                                               JournalPage, JournalProperties,
                                               TaskPage, TaskProperties,
                                               PaginationResult)
+from common_libs.models.context import ExecutionContext
+from common_libs.constants.literal_definitions import TaskRelationsDefinition
 from migration_engine.repo.repo_page_notion import (ClientSingleton,
                                                     NotionRepoJournal,
                                                     NotionRepoSource)
-from common_libs.constants.literal_definitions import ExecutionContext, TaskRelationsDefinition, JournalRelationsDefinition
 
 
 def create_mock_api_page(page_id: PageId, title: str) -> Dict[str, Any]:
@@ -125,7 +126,7 @@ class TestNotionRepoPage(unittest.IsolatedAsyncioTestCase):
         self.mock_notion_client.data_sources.query.return_value = mock_response
 
         db_id = UUID("22345678-1234-5678-1234-567812345678")
-        execution_context = ExecutionContext(DEBUG=True, PAGE_SIZE=1)
+        execution_context = ExecutionContext(debug=True, page_size=1)
         
         filter_query = {
              'property': 'Ancestors',
@@ -143,7 +144,7 @@ class TestNotionRepoPage(unittest.IsolatedAsyncioTestCase):
 
         # Assert
         self.mock_notion_client.data_sources.query.assert_awaited_once_with(
-            str(db_id), start_cursor=None, filter=filter_query, page_size=execution_context.PAGE_SIZE
+            str(db_id), start_cursor=None, filter=filter_query, page_size=execution_context.page_size
         )
         self.assertIsInstance(result, PaginationResult)
         self.assertFalse(result.has_more)
@@ -189,7 +190,7 @@ class TestNotionRepoPage(unittest.IsolatedAsyncioTestCase):
         ]
 
         db_id = UUID('{42345678-1234-5678-1234-567812345678}')
-        execution_context = ExecutionContext(PAGE_SIZE=10, DEBUG=True)
+        execution_context = ExecutionContext(page_size=10, debug=True)
 
         # Act
         # The repo's query_database loops until has_more is false.

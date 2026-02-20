@@ -6,14 +6,24 @@ services:
     container_name: migration_engine
     environment:
       - NOTION_API_KEY
-      - SOURCE_DATABASE_ID_LIFE_STYLE
-      - SOURCE_DATABASE_ID_NUCLEUS
-      - SOURCE_PARENT_PAGE
-      - TARGET_DATABASE_ID
+      - SOURCE_DATASOURCE_ID
+      - JOURNAL_DATASOURCE_ID
+      - TARGET_DATASOURCE_ID
+      - JOURNAL_JUNCTION_RELATION
+      - SOURCE_PARENT_PAGE_ID
       - PAGE_SIZE
       - PAGINATION_SIZE
       - SEMAPHORE_LIMIT
       - DEBUG
+    networks:
+      - app-network
+  tracing:
+    build:
+      context: .
+      dockerfile: apps/tracing/Dockerfile
+    container_name: tracing
+    expose:
+      - 8000:8000
     networks:
       - app-network
 networks:

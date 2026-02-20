@@ -1,21 +1,24 @@
+
 import asyncio
 import logging
 from time import perf_counter
 from uuid import UUID
 
 from common_libs.constants.literal_definitions import (
-    ExecutionContext,
     JournalRelationsDefinition,
     JunctionRelationDefinition,
     RelationDefinitions,
     TaskRelationsDefinition,
 )
 from common_libs.models.client_models import (
-    DatasourceInfo,
     JournalPage,
-    MigrationContext,
     PageId,
     TaskPage,
+)
+from common_libs.models.context import (
+    DatasourceInfo,
+    ExecutionContext,
+    MigrationContext,
 )
 from pydantic import ValidationError
 
@@ -43,10 +46,12 @@ class Runner:
                      TaskPage,
                      JournalPage,
                      RelationDefinitions]):
-        self.service = spn.ServicePage(execution_context, migration_context)
+        self._migration_context = migration_context
+        self._execution_context = execution_context
+        self.service = spn.ServicePage()
 
         logging.basicConfig(
-            level=logging.DEBUG if execution_context.DEBUG else logging.INFO)
+            level=logging.DEBUG if execution_context.debug else logging.INFO)
 
     async def run(
         self,
@@ -54,9 +59,15 @@ class Runner:
     ) -> None:
         try:
             root_page_id = PageId(Id=source_parent_page_id)
-            root_page = await self.service.read_page(root_page_id)
+            root_page = await self.service.read_page(
+                root_page_id,
+                self._execution_context,
+                self._migration_context)
 
-            _ = await self.service.build_page_hierarchy(root_page=root_page)
+            _ = await self.service.build_page_hierarchy(
+                root_page=root_page,
+                execution_context=self._execution_context,
+                migration_context=self._migration_context)
 
             logger.info("Root Page Hierarchy:\n%s\nLeaves Count:%s",
                         root_page, count_leaves(root_page))
@@ -71,38 +82,40 @@ class Runner:
 
 async def execute_migration_engine():
     try:
+        # _ = Tracing(address=GLOBAL_CONFIG.trace_url,
+        #                     port=GLOBAL_CONFIG.trace_port)
 
         execution_context = ExecutionContext(
-            DEBUG=GLOBAL_CONFIG.debug,
-            PAGE_SIZE=GLOBAL_CONFIG.page_size
+            debug=GLOBAL_CONFIG.debug,
+            page_size=GLOBAL_CONFIG.page_size,
         )
 
         repository_di = RepositoryDirectInjection(
                             source_repo=NotionRepoSource(
                                 GLOBAL_CONFIG.notion_api_key,
-                                execution_context.DEBUG),
+                                execution_context.debug),
                             journal_repo=NotionRepoJournal(
                                 GLOBAL_CONFIG.notion_api_key,
-                                execution_context.DEBUG)
+                                execution_context.debug)
                 )
 
         migration_context = MigrationContext(
-            SOURCE_DATASOURCE_INFO=DatasourceInfo[PageId, TaskPage, RelationDefinitions](
-                DatasourceId=GLOBAL_CONFIG.source_datasource_id,
-                Repo=repository_di.source_repo),
+            source_datasource_info=DatasourceInfo[PageId, TaskPage, RelationDefinitions](
+                datasource_id=GLOBAL_CONFIG.source_datasource_id,
+                repo=repository_di.source_repo),
 
-            TARGET_DATASOURCE_INFO=DatasourceInfo[PageId, TaskPage, RelationDefinitions](
-                DatasourceId=GLOBAL_CONFIG.target_datasource_id,
-                Repo=repository_di.source_repo),
+            target_datasource_info=DatasourceInfo[PageId, TaskPage, RelationDefinitions](
+                datasource_id=GLOBAL_CONFIG.target_datasource_id,
+                repo=repository_di.source_repo),
 
-            JOURNAL_DATASOURCE_INFO=DatasourceInfo[PageId, JournalPage, RelationDefinitions](
-                DatasourceId=GLOBAL_CONFIG.journal_datasource_id,
-                Repo=repository_di.journal_repo),
+            journal_datasource_info=DatasourceInfo[PageId, JournalPage, RelationDefinitions](
+                datasource_id=GLOBAL_CONFIG.journal_datasource_id,
+                repo=repository_di.journal_repo),
 
-            JUNCTION_RELATION_DEFINITION=JunctionRelationDefinition(
+            junction_relation_definition=JunctionRelationDefinition(
                 GLOBAL_CONFIG.junction_relation_definition),
-            TASK_RELATION_DEFINITION=TaskRelationsDefinition.ANCESTORS,
-            JOURNAL_RELATION_DEFINITION=JournalRelationsDefinition.ANCESTOR
+            task_relation_definition=TaskRelationsDefinition.ANCESTORS,
+            journal_relation_definition=JournalRelationsDefinition.ANCESTOR
             )
 
         runner = Runner(execution_context, migration_context)

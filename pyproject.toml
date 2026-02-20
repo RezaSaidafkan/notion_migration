@@ -59,6 +59,3 @@ ignore = [
     ".dev/**",
     "**/tests/**"
 ]
-
-[dependency-groups]
-dev = []

@@ -1,15 +1,12 @@
 # pylint: disable = C0103
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Generic, List, Optional, Sequence, TypeVar, Union
+from typing import Generic, List, Optional, Sequence, TypeVar, Union
 from uuid import UUID
 
-from pydantic import UUID4, BaseModel
+from pydantic import BaseModel
 
 from common_libs.constants.literal_definitions import (
-    JournalRelationsDefinition,
     JunctionRelationDefinition,
     RelationDefinitions,
-    TaskRelationsDefinition,
 )
 
 from .api_models import (
@@ -22,9 +19,6 @@ from .api_models import (
     TimelineProperty,
     TitleProperty,
 )
-
-if TYPE_CHECKING:
-    from migration_engine.repo.repo_page_interface import RepositoryInterface
 
 # Define K as Page ID type
 K = TypeVar("K", bound="PageId")
@@ -43,22 +37,6 @@ RD = TypeVar("RD", bound=RelationDefinitions)
 
 # Define Related pages
 R = TypeVar("R", bound=Union["TaskRelation", "JournalRelation"])
-
-
-@dataclass
-class MigrationContext(Generic[K, P_co, J_co, RD]):
-    SOURCE_DATASOURCE_INFO: DatasourceInfo[K, P_co, RD]
-    TARGET_DATASOURCE_INFO: DatasourceInfo[K, P_co, RD]
-    JOURNAL_DATASOURCE_INFO: DatasourceInfo[K, J_co, RD]
-    TASK_RELATION_DEFINITION: TaskRelationsDefinition
-    JOURNAL_RELATION_DEFINITION: JournalRelationsDefinition
-    JUNCTION_RELATION_DEFINITION: JunctionRelationDefinition
-
-
-@dataclass
-class DatasourceInfo(Generic[K, B, RD]):
-    DatasourceId: UUID4
-    Repo: RepositoryInterface[K, B, RD]
 
 
 class PageId(BaseModel):
@@ -159,10 +137,12 @@ class JournalRelation(BaseRelation["JournalPage"]):
         return base_repr
 
 
+class BasePage(BaseModel):
+    Id: PageId
+
 # class CommonPage(Generic[K], BaseModel):
 #     Id: K
-class CommonPage(BaseModel):
-    Id: PageId
+class CommonPage(BasePage):
     Properties: Union[TaskProperties, JournalProperties]
     Icon: Optional[IconProperty | ExternalEmoji]
 

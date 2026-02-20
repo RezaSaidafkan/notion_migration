@@ -18,6 +18,8 @@ class Config(BaseModel):
     page_size: int
     semaphore_limit: int
     debug: bool
+    trace_url: str
+    trace_port: int
 
 
 def get_config() -> Config:
@@ -36,7 +38,9 @@ def get_config() -> Config:
             "junction_relation_definition": env_vars.get("JUNCTION_RELATION_DEFINITION") or None,
             "page_size": int(env_vars.get("PAGE_SIZE") or "1"),
             "semaphore_limit": int(env_vars.get("SEMAPHORE_LIMIT") or "10"),
-            "debug": (env_vars.get("DEBUG") or "False").lower() in ("true", "1")
+            "debug": (env_vars.get("DEBUG") or "False").lower() in ("true", "1"),
+            "trace_url": env_vars.get("TRACE_URL") or None,
+            "trace_port": int(env_vars.get("TRACE_PORT") or "8000")
             }
         )
     except ValidationError as e:

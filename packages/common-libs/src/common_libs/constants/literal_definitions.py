@@ -1,6 +1,5 @@
 # pylint: disable = invalid-name
 import enum
-from dataclasses import dataclass
 from typing import Union
 
 
@@ -26,13 +25,6 @@ class TaskRelationsDefinition(enum.Enum):
     BACKTRACK = "Backtrack"
     FORWARDTRACK = "Forwardtrack"
     JOURNALS = "Journals"
-
-
-@dataclass
-class ExecutionContext:
-    PAGE_SIZE: int
-    DEBUG: bool
-
 
 RelationDefinitions = Union[
     "TaskRelationsDefinition",

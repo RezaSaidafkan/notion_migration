@@ -2,8 +2,8 @@ from abc import ABC, abstractmethod
 from typing import Generic
 from uuid import UUID
 
-from common_libs.constants.literal_definitions import ExecutionContext
 from common_libs.models.client_models import RD, B, K, PaginationResult
+from common_libs.models.context import ExecutionContext
 
 
 class RepositoryError(Exception):
@@ -20,9 +20,9 @@ class RepositoryInterface(Generic[K, B, RD], ABC):
     async def query_database(
         self,
         page_id: K,
+        execution_context: ExecutionContext,
         data_source_id: UUID,
         relation: RD,
-        execution_context: ExecutionContext,
         cursor: str | None = None
     ) -> PaginationResult[B]:
         pass

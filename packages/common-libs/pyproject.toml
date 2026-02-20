@@ -14,10 +14,6 @@ dependencies = [
 [tool.uv]
 package = true
 
-[project.scripts]
-common-libs = "common_libs:__init__"
-
-
 [build-system]
 requires = ["uv_build>=0.9.26,<0.10.0"]
 build-backend = "uv_build"

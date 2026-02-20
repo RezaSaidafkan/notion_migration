@@ -4,10 +4,7 @@ from dataclasses import dataclass
 from typing import Generic, List
 from uuid import UUID
 
-from common_libs.constants.literal_definitions import (
-    ExecutionContext,
-    RelationDefinitions,
-)
+from common_libs.constants.literal_definitions import RelationDefinitions
 from common_libs.models.api_models import ApiPage
 from common_libs.models.client_models import (
     B,
@@ -18,6 +15,8 @@ from common_libs.models.client_models import (
     TaskPage,
     TaskProperties,
 )
+from common_libs.models.context import ExecutionContext
+from common_libs.utils.tracing import Tracing
 from notion_client import APIResponseError
 from notion_client import AsyncClient as Client
 from pydantic import ValidationError
@@ -74,12 +73,13 @@ class NotionRepository(
 
     # pylint: disable=too-many-positional-arguments, too-many-arguments
     @rate_limited(max_rate=3, time_period=1)
+    @Tracing("127.0.0.1", 8000)
     async def query_database(
         self,
         page_id: PageId,
+        execution_context: ExecutionContext,
         data_source_id: UUID,
         relation: RelationDefinitions,
-        execution_context: ExecutionContext,
         cursor: str | None = None
     ) -> PaginationResult[B]:
         try:
@@ -87,18 +87,19 @@ class NotionRepository(
             query = {
                 "start_cursor": cursor,
                 "filter": filter_query or {},
-                "page_size": execution_context.PAGE_SIZE,
+                "page_size": execution_context.page_size,
             }
             resp = await self.notion.data_sources.query(str(data_source_id), **query)
 
-            if execution_context.DEBUG:
+            if execution_context.debug:
                 logger.debug(
-                    "Query to Notion CLient:\n%s\nResponse from Notion Client:\n%s", query, resp)
+                    "Query to Notion CLient:\n%s\nReceived Response from Notion Client", query)
 
             results = [ApiPage(**result) for result in resp["results"]]
             converted_results: List[B] = [
                 self.convert_client_page(apiPage) for apiPage in results
             ]
+
             return PaginationResult[B](
                 results=converted_results,
                 has_more=resp["has_more"],
@@ -110,14 +111,14 @@ class NotionRepository(
             raise RepositoryError(
                 f"Failed to parse API response to internal model:\n{key_error}\n{resp}"
             ) from key_error
-        except APIResponseError as e:
-            logging.exception("Failed to query with:\n%s\n%s", query, e)
+        except APIResponseError as api_e:
+            logging.exception("Failed to query with:\n%s\n%s", query, api_e)
             raise RepositoryError(
-                f"Failed to query API with:\n{query}") from e
-        except ValidationError as e:
-            logging.exception("Failed to query with:\n%s\n%s", query, e)
+                f"Failed to query API with:\n{query}") from api_e
+        except ValidationError as validation_e:
+            logging.exception("Failed to query with:\n%s\n%s", query, validation_e)
             raise RepositoryError(
-                f"Failed to validate response with the model for query:\n{query}") from e
+                f"Failed to validate response with the model for query:\n{query}") from validation_e
         except Exception as e:
             logging.exception("Unknown error happend for:\n%s\n%s", query, e)
             raise RepositoryError(f"Unknown error happend for:\n{query}") from e

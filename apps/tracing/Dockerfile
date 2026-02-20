@@ -3,7 +3,7 @@ FROM ghcr.io/astral-sh/uv:python3.14-bookworm-slim AS checker
 
 # Enable bytecode compilation & copy mode (better for Docker)
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
-ARG MEMBER_PACKAGE="migration-engine"
+ARG MEMBER_PACKAGE="tracing"
 
 WORKDIR /app
 
@@ -42,7 +42,7 @@ FROM ghcr.io/astral-sh/uv:python3.14-bookworm-slim AS builder
 
 # Enable bytecode compilation & copy mode (better for Docker)
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
-ARG MEMBER_PACKAGE="migration-engine"
+ARG MEMBER_PACKAGE="tracing"
 
 WORKDIR /app
 
@@ -73,7 +73,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # --- Stage 3: Runtime ---
 FROM python:3.14-slim-trixie
 
-ARG MEMBER_PACKAGE="migration-engine"
+ARG MEMBER_PACKAGE="tracing"
 
 WORKDIR /app
 
@@ -84,5 +84,4 @@ COPY packages/common-libs /app/packages/common-libs
 # Ensure the app uses the venv
 ENV PATH="/app/.venv/bin:$PATH"
 
-CMD ["migration-engine"]
-
+CMD ["fastapi", "run", "/app/apps/tracing/src/tracing/main.py", "--host", "0.0.0.0", "--port", "8000"]
