@@ -14,7 +14,7 @@ from common_libs.models.client_models import (
     JournalPage,
     JournalRelation,
     P_co,
-    PageId,
+    BasePage,
     RelativePages,
     TaskPage,
     TaskRelation,
@@ -24,6 +24,8 @@ from common_libs.models.context import (
     ExecutionContext,
     MigrationContext,
 )
+from common_libs.utils.tracing import tracer
+from common_libs.utils.rate_limiter import rate_limited
 
 from migration_engine.repo.repo_page_interface import (
     RepositoryError,
@@ -39,7 +41,7 @@ logger = logging.getLogger(__name__)
 
 
 class ServicePage(
-    ServicePageInterface[PageId,
+    ServicePageInterface[BasePage,
                          TaskPage,
                          TaskPage,
                          JournalPage,
@@ -57,30 +59,31 @@ class ServicePage(
 
     async def read_page(
         self,
-        page_id: PageId,
+        page: BasePage,
         execution_context: ExecutionContext,
         migration_context: MigrationContext[
-            PageId,
+            BasePage,
             TaskPage,
             JournalPage,
             RelationDefinitions]) -> TaskPage:
         try:
             retrieved_page = await migration_context.\
-                source_datasource_info.repo.read_page(page_id)
+                source_datasource_info.repo.read_page(page)
             return TaskPage(
-                    Id=page_id,
+                    Id=page.Id,
                     Icon=retrieved_page.Icon,
                     Properties=retrieved_page.Properties,
                 )
         except RepositoryError as e:
-            logging.exception("Failed to read page_id: %s", page_id)
-            raise ServiceError(f"Failed to read page_id: {page_id}") from e
+            logging.exception("Failed to read page_id: %s", page)
+            raise ServiceError(f"Failed to read page_id: {page}") from e
 
+    @tracer
     async def query_database(
         self,
-        page_id: PageId,
+        page: BasePage,
         relation: RelationDefinitions,
-        datasource_info: DatasourceInfo[PageId, B, RelationDefinitions],
+        datasource_info: DatasourceInfo[BasePage, B, RelationDefinitions],
         execution_context: ExecutionContext,
         ) -> Sequence[B]:
         exhausted = False
@@ -90,7 +93,7 @@ class ServicePage(
         while not exhausted:
             try:
                 pagination = await datasource_info.repo.query_database(
-                    page_id=page_id,
+                    page=page,
                     execution_context=execution_context,
                     data_source_id=datasource_info.datasource_id,
                     relation=relation,
@@ -112,18 +115,20 @@ class ServicePage(
                     f"Failed to query database: {datasource_info}{cursor_msg}") from e
         return pages
 
+    @tracer
     async def build_page_hierarchy(
         self,
-        root_page: TaskPage,
+        page: TaskPage,
         migration_context: MigrationContext[
-            PageId,
+            BasePage,
             TaskPage,
             JournalPage,
             RelationDefinitions],
         execution_context: ExecutionContext,
         level: int = 0,
     ) -> Sequence[TaskPage]:  # pylint: disable=too-many-positional-arguments
-        """Return pages whose 'Ancestor' relation contains the given parent.
+        """
+        Return pages whose 'Ancestor' relation contains the given parent.
 
         This method contains the schema knowledge ('Ancestor' relation) and
         delegates to the repository's generic `query_database` method.
@@ -139,22 +144,9 @@ class ServicePage(
                     task_group=tg,
                     execution_context=execution_context)
 
-                # tg.create_task(
-                #     timed(
-                #         self.process_source_recursive(
-                #             root_page,
-                #             level,
-                #             collected,
-                #             migration_context,
-                #             execution_context
-                #         ),
-                #         root_page,
-                #         "root_page",
-                #     )
-                # )
                 tg.create_task(
                         self.process_source_recursive(
-                            root_page,
+                            page,
                             level,
                             collected,
                             migration_context,
@@ -163,7 +155,7 @@ class ServicePage(
                     )
         except* ServiceError as eg:
             raise ServiceError(
-                f"Failed to recursively build page hierarchy for: {root_page}") from eg
+                f"Failed to recursively build page hierarchy for: {page.Properties.Title}") from eg
         except* Exception as e:
             raise ServiceError("An unknown Exception was raised") from e
 
@@ -173,23 +165,13 @@ class ServicePage(
     def create_task_sub_pages(
         self,
         page: CommonPage,
-        datasource_info: DatasourceInfo[PageId, B, RelationDefinitions],
+        datasource_info: DatasourceInfo[BasePage, B, RelationDefinitions],
         relation: RelationDefinitions,
         execution_context: ExecutionContext,
     ) -> Task[Sequence[B]]:
         return self._service_execution_context.task_group.create_task(
-            # timed(
-            #     self.query_database(
-            #         page_id=page.Id,
-            #         relation=relation,
-            #         datasource_info=datasource_info,
-            #         execution_context=execution_context
-            #     ),
-            #     page,
-            #     "query_database:sub_pages",
-            # ),
             self.query_database(
-                page_id=page.Id,
+                page=BasePage(Id=page.Id),
                 execution_context=execution_context,
                 relation=relation,
                 datasource_info=datasource_info
@@ -202,7 +184,7 @@ class ServicePage(
         level: int,
         collected: List[TaskPage],
         migration_context: MigrationContext[
-            PageId,
+            BasePage,
             TaskPage,
             JournalPage,
             RelationDefinitions],
@@ -265,7 +247,7 @@ class ServicePage(
         self,
         page: JournalPage,
         migration_context: MigrationContext[
-            PageId,
+            BasePage,
             TaskPage,
             JournalPage,
             RelationDefinitions],
@@ -300,7 +282,7 @@ class ServicePage(
         self,
         page: TaskPage,
         migration_context: MigrationContext[
-            PageId,
+            BasePage,
             TaskPage,
             JournalPage,
             RelationDefinitions],
@@ -314,7 +296,7 @@ class ServicePage(
         page: TaskPage,
         relations: RelativePages,
         migration_context: MigrationContext[
-            PageId,
+            BasePage,
             TaskPage,
             JournalPage,
             RelationDefinitions],
@@ -328,7 +310,7 @@ class ServicePage(
         page: TaskPage,
         relations: RelativePages,
         migration_context: MigrationContext[
-            PageId,
+            BasePage,
             TaskPage,
             JournalPage,
             RelationDefinitions],
@@ -340,7 +322,7 @@ class ServicePage(
     async def migrate_page(
         self,
         page: TaskPage,
-        migration_context: MigrationContext[PageId, TaskPage, JournalPage, RelationDefinitions],
+        migration_context: MigrationContext[BasePage, TaskPage, JournalPage, RelationDefinitions],
         execution_context: ExecutionContext
     ) -> None:
         raise NotImplementedError(
@@ -350,7 +332,7 @@ class ServicePage(
     async def migrate_pages(
         self,
         pages: List[P_co],
-        migration_context: MigrationContext[PageId, TaskPage, JournalPage, RelationDefinitions],
+        migration_context: MigrationContext[BasePage, TaskPage, JournalPage, RelationDefinitions],
         execution_context: ExecutionContext
     ) -> None:
         raise NotImplementedError(
@@ -360,7 +342,7 @@ class ServicePage(
     async def verify_page_migration(
         self,
         page: CommonPage,
-        migration_context: MigrationContext[PageId, TaskPage, JournalPage, RelationDefinitions],
+        migration_context: MigrationContext[BasePage, TaskPage, JournalPage, RelationDefinitions],
         execution_context: ExecutionContext) -> bool:
         raise NotImplementedError(
             "This method should be implemented in the service layer."
@@ -368,7 +350,7 @@ class ServicePage(
 
     async def migrate_all_pages(
         self,
-        migration_context: MigrationContext[PageId, TaskPage, JournalPage, RelationDefinitions],
+        migration_context: MigrationContext[BasePage, TaskPage, JournalPage, RelationDefinitions],
         execution_context: ExecutionContext) -> None:
         raise NotImplementedError(
             "This method should be implemented in the service layer."

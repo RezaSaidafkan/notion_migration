@@ -13,6 +13,7 @@ from common_libs.constants.literal_definitions import (
 from common_libs.models.client_models import (
     JournalPage,
     PageId,
+    BasePage,
     TaskPage,
 )
 from common_libs.models.context import (
@@ -20,6 +21,8 @@ from common_libs.models.context import (
     ExecutionContext,
     MigrationContext,
 )
+from common_libs.singletons.rate_limiter_singleton import RateLimiter
+from common_libs.singletons.tracing_singleton import Tracing
 from pydantic import ValidationError
 
 import migration_engine.service.service_page_notion as spn
@@ -42,7 +45,7 @@ class Runner:
     def __init__(self,
                  execution_context: ExecutionContext,
                  migration_context: MigrationContext[
-                     PageId,
+                     BasePage,
                      TaskPage,
                      JournalPage,
                      RelationDefinitions]):
@@ -58,19 +61,19 @@ class Runner:
         source_parent_page_id: UUID,
     ) -> None:
         try:
-            root_page_id = PageId(Id=source_parent_page_id)
-            root_page = await self.service.read_page(
-                root_page_id,
+            root_base_page = BasePage(Id=PageId(Id=source_parent_page_id))
+            root_task_page = await self.service.read_page(
+                root_base_page,
                 self._execution_context,
                 self._migration_context)
 
             _ = await self.service.build_page_hierarchy(
-                root_page=root_page,
+                page=root_task_page,
                 execution_context=self._execution_context,
                 migration_context=self._migration_context)
 
             logger.info("Root Page Hierarchy:\n%s\nLeaves Count:%s",
-                        root_page, count_leaves(root_page))
+                        root_task_page, count_leaves(root_task_page))
         except ValidationError as page_id_e:
             logger.exception("Failed to validate PageId: %s: %s",
                              source_parent_page_id, page_id_e)
@@ -82,8 +85,9 @@ class Runner:
 
 async def execute_migration_engine():
     try:
-        # _ = Tracing(address=GLOBAL_CONFIG.trace_url,
-        #                     port=GLOBAL_CONFIG.trace_port)
+        _ = Tracing(address=GLOBAL_CONFIG.trace_url,
+                    port=GLOBAL_CONFIG.trace_port)
+        _ = RateLimiter(max_rate=3, time_period=1)
 
         execution_context = ExecutionContext(
             debug=GLOBAL_CONFIG.debug,
@@ -93,22 +97,24 @@ async def execute_migration_engine():
         repository_di = RepositoryDirectInjection(
                             source_repo=NotionRepoSource(
                                 GLOBAL_CONFIG.notion_api_key,
+                                GLOBAL_CONFIG.notion_client_timeout_ms,
                                 execution_context.debug),
                             journal_repo=NotionRepoJournal(
                                 GLOBAL_CONFIG.notion_api_key,
+                                GLOBAL_CONFIG.notion_client_timeout_ms,
                                 execution_context.debug)
                 )
 
         migration_context = MigrationContext(
-            source_datasource_info=DatasourceInfo[PageId, TaskPage, RelationDefinitions](
+            source_datasource_info=DatasourceInfo[BasePage, TaskPage, RelationDefinitions](
                 datasource_id=GLOBAL_CONFIG.source_datasource_id,
                 repo=repository_di.source_repo),
 
-            target_datasource_info=DatasourceInfo[PageId, TaskPage, RelationDefinitions](
+            target_datasource_info=DatasourceInfo[BasePage, TaskPage, RelationDefinitions](
                 datasource_id=GLOBAL_CONFIG.target_datasource_id,
                 repo=repository_di.source_repo),
 
-            journal_datasource_info=DatasourceInfo[PageId, JournalPage, RelationDefinitions](
+            journal_datasource_info=DatasourceInfo[BasePage, JournalPage, RelationDefinitions](
                 datasource_id=GLOBAL_CONFIG.journal_datasource_id,
                 repo=repository_di.journal_repo),
 

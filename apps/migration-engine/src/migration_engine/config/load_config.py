@@ -20,6 +20,8 @@ class Config(BaseModel):
     debug: bool
     trace_url: str
     trace_port: int
+    notion_client_timeout_ms: float
+    
 
 
 def get_config() -> Config:
@@ -40,7 +42,8 @@ def get_config() -> Config:
             "semaphore_limit": int(env_vars.get("SEMAPHORE_LIMIT") or "10"),
             "debug": (env_vars.get("DEBUG") or "False").lower() in ("true", "1"),
             "trace_url": env_vars.get("TRACE_URL") or None,
-            "trace_port": int(env_vars.get("TRACE_PORT") or "8000")
+            "trace_port": int(env_vars.get("TRACE_PORT") or "8000"),
+            "notion_client_timeout_ms": float(env_vars.get(("NOTION_CLIENT_TIMEOUT_MS") or 10.0)),
             }
         )
     except ValidationError as e:

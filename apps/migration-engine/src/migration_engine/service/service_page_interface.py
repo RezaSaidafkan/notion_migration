@@ -2,14 +2,15 @@ import asyncio
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Generic, List, Sequence
+from types import CoroutineType
 
 from common_libs.models.client_models import (
-    RD,
+    BP,
     B,
     J_co,
-    K,
     P_co,
     R,
+    RD
 )
 from common_libs.models.context import (
     DatasourceInfo,
@@ -28,21 +29,21 @@ class ServiceExecutionContext:
     execution_context: ExecutionContext
 
 
-class ServicePageInterface(ABC, Generic[K, B, P_co, J_co, R, RD]):
+class ServicePageInterface(ABC, Generic[BP, B, P_co, J_co, R, RD]):
     @abstractmethod
     async def read_page(
         self,
-        page_id: K,
+        page: BP,
         execution_context: ExecutionContext,
-        migration_context: MigrationContext[K, P_co, J_co, RD]) -> B:
+        migration_context: MigrationContext[BP, P_co, J_co, RD]) -> B:
         pass
 
     @abstractmethod
     async def query_database(
         self,
-        page_id: K,
+        page: BP,
         relation: RD,
-        datasource_info: DatasourceInfo[K, B, RD],
+        datasource_info: DatasourceInfo[BP, B, RD],
         execution_context: ExecutionContext
     ) -> Sequence[B]:
         pass
@@ -51,8 +52,8 @@ class ServicePageInterface(ABC, Generic[K, B, P_co, J_co, R, RD]):
     @abstractmethod
     async def build_page_hierarchy(
         self,
-        root_page: B,
-        migration_context: MigrationContext[K, P_co, J_co, RD],
+        page: B,
+        migration_context: MigrationContext[BP, P_co, J_co, RD],
         execution_context: ExecutionContext,
         level: int = 0,
     ) -> Sequence[B]:
@@ -62,7 +63,7 @@ class ServicePageInterface(ABC, Generic[K, B, P_co, J_co, R, RD]):
     async def create_or_update_page(
         self,
         page: B,
-        migration_context: MigrationContext[K, P_co, J_co, RD],
+        migration_context: MigrationContext[BP, P_co, J_co, RD],
         execution_context: ExecutionContext) -> bool:
         pass
 
@@ -71,7 +72,7 @@ class ServicePageInterface(ABC, Generic[K, B, P_co, J_co, R, RD]):
         self,
         page: B,
         relations: R,
-        migration_context: MigrationContext[K, P_co, J_co, RD],
+        migration_context: MigrationContext[BP, P_co, J_co, RD],
         execution_context: ExecutionContext) -> None:
         pass
 
@@ -80,7 +81,7 @@ class ServicePageInterface(ABC, Generic[K, B, P_co, J_co, R, RD]):
         self,
         page: B,
         relations: R,
-        migration_context: MigrationContext[K, P_co, J_co, RD],
+        migration_context: MigrationContext[BP, P_co, J_co, RD],
         execution_context: ExecutionContext) -> None:
         pass
 
@@ -88,7 +89,7 @@ class ServicePageInterface(ABC, Generic[K, B, P_co, J_co, R, RD]):
     async def migrate_page(
         self,
         page: B,
-        migration_context: MigrationContext[K, P_co, J_co, RD],
+        migration_context: MigrationContext[BP, P_co, J_co, RD],
         execution_context: ExecutionContext
     ) -> None:
         pass
@@ -97,7 +98,7 @@ class ServicePageInterface(ABC, Generic[K, B, P_co, J_co, R, RD]):
     async def migrate_pages(
         self,
         pages: List[B],
-        migration_context: MigrationContext[K, P_co, J_co, RD],
+        migration_context: MigrationContext[BP, P_co, J_co, RD],
         execution_context: ExecutionContext,
     ) -> None:
         pass
@@ -106,13 +107,13 @@ class ServicePageInterface(ABC, Generic[K, B, P_co, J_co, R, RD]):
     async def verify_page_migration(
         self,
         page: B,
-        migration_context: MigrationContext[K, P_co, J_co, RD],
+        migration_context: MigrationContext[BP, P_co, J_co, RD],
         execution_context: ExecutionContext) -> bool:
         pass
 
     @abstractmethod
     async def migrate_all_pages(
         self,
-        migration_context: MigrationContext[K, P_co, J_co, RD],
+        migration_context: MigrationContext[BP, P_co, J_co, RD],
         execution_context: ExecutionContext) -> None:
         pass

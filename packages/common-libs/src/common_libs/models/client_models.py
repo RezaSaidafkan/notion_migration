@@ -23,6 +23,8 @@ from .api_models import (
 # Define K as Page ID type
 K = TypeVar("K", bound="PageId")
 
+BP = TypeVar("BP", bound="BasePage")
+
 # Define B as Base type for both P & J
 B = TypeVar("B", bound="CommonPage")
 
