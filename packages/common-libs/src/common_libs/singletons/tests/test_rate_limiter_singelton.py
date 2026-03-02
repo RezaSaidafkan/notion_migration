@@ -1,12 +1,12 @@
 import unittest
 from unittest.mock import patch
 import pytest
-import sys
 
 
 @pytest.fixture(scope="function")
 def mock_async(request):
-    with patch("common_libs.singletons.rate_limiter_singleton.AsyncLimiter") as mocked_async_limiter:
+    with patch("common_libs.singletons.rate_limiter_singleton.AsyncLimiter") \
+        as mocked_async_limiter:
         from common_libs.singletons.rate_limiter_singleton import RateLimiter, RateLimiterExeption
         if hasattr(RateLimiter, '_singleton') and RateLimiter._singleton:
             RateLimiter._singleton = None

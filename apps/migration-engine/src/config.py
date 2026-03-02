@@ -1,1 +1,1 @@
-decorator_mock_activated = False
+DECORATOR_MOCK_ACTIVATED = False

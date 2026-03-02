@@ -8,18 +8,23 @@ from common_libs.constants.literal_definitions import RelationDefinitions
 from common_libs.models.api_models import ApiPage
 from common_libs.models.client_models import (
     B,
+    BasePage,
     JournalPage,
     JournalProperties,
     PageId,
-    BasePage,
     PaginationResult,
     TaskPage,
     TaskProperties,
 )
 from common_libs.models.context import ExecutionContext
+from common_libs.utils.rate_limiter import rate_limited
 from common_libs.utils.tracing import tracer
-from notion_client import APIResponseError
 from notion_client import AsyncClient as Client
+from notion_client.errors import (
+    APIResponseError,
+    HTTPResponseError,
+    RequestTimeoutError,
+)
 from pydantic import ValidationError
 
 from migration_engine.repo.notion_object_mapping.notion_object_map import translate
@@ -27,7 +32,6 @@ from migration_engine.repo.repo_page_interface import (
     RepositoryError,
     RepositoryInterface,
 )
-from common_libs.utils.rate_limiter import rate_limited
 
 logger = logging.getLogger(__name__)
 
@@ -51,20 +55,23 @@ class ClientSingleton:
 class NotionRepository(
     Generic[B], RepositoryInterface[BasePage, B, RelationDefinitions], ClientSingleton
 ):
+    # pylint: disable=invalid-overridden-method
     async def read_page(self, page: BasePage, debug: bool=False) -> B:
         try:
             raw_result = await self.notion.pages.retrieve(page_id=str(page.Id.Id))
             api_page = ApiPage(**raw_result)
             page = self.convert_client_page(api_page)
             return page
-        except APIResponseError as ae:
-            logger.exception(ae)
+        except APIResponseError:
+            logger.exception(
+                "Failed to retrieve page %s", page)
             raise RepositoryError(
-                f"Failed to retrieve page {page}") from ae
-        except ValidationError as ve:
-            logger.exception(ve)
+                f"Failed to retrieve page {page}") from None
+        except ValidationError:
+            logger.exception(
+                "Failed to validate response with the model for page %s", page)
             raise RepositoryError(
-                f"Failed to validate response with the model for page {page}") from ve
+                f"Failed to validate response with the model for page {page}") from None
         except Exception as e:
             logger.exception("Unknown error happend")
             raise RepositoryError("Unknown error happend") from e
@@ -73,6 +80,7 @@ class NotionRepository(
     def convert_client_page(self, result: ApiPage) -> B:
         pass
 
+    # pylint: disable=invalid-overridden-method, too-many-locals
     # pylint: disable=too-many-positional-arguments, too-many-arguments
     @tracer
     @rate_limited
@@ -95,7 +103,8 @@ class NotionRepository(
 
             if execution_context.debug:
                 logger.debug(
-                    "Query to Notion CLient:\n%s\nReceived Response from Notion Client", query)
+                    "Query to Notion CLient:\n%s\nReceived Response from Notion Client",
+                    query)
 
             results = [ApiPage(**result) for result in resp["results"]]
             converted_results: List[B] = [
@@ -108,22 +117,45 @@ class NotionRepository(
                 next_cursor=resp.get("next_cursor"),
             )
         except KeyError as key_error:
-            logging.exception("Failed to parse API response to internal model:\n%s\n%s",
-                              key_error, resp)
+            logging.exception(
+                "Failed to parse API response to internal model:\n%s\n%s",
+                key_error, resp)
             raise RepositoryError(
-                f"Failed to parse API response to internal model:\n{key_error}\n{resp}"
-            ) from key_error
+                f"Failed to parse API response to internal model:\n\
+                    {key_error}\n{resp}",
+                ) from None
+        except RequestTimeoutError as rto_e:
+            logging.exception(
+                "%s\nFor Query:\n%s", rto_e, query)
+            raise RepositoryError(
+                f"{rto_e}\nFor Query:\n{query}") from None
         except APIResponseError as api_e:
-            logging.exception("Failed to query with:\n%s\n%s", query, api_e)
+            logging.exception(
+                "APIResponseError:\tCode:\t\
+                %s\tBody:\t%s\nQuery:\n%s", api_e.code, api_e.body, query
+                )
             raise RepositoryError(
-                f"Failed to query API with:\n{query}") from api_e
+                f"APIResponseError:\tCode:\t\
+                {api_e.code}\tBody:\t{api_e.body}\nQuery:\n{query}",
+                ) from None
+        except HTTPResponseError as hr_e:
+            logging.exception(
+                "HTTPResponseError:\tCode:\t%s\tBody:\t%s\nQuery:\n%s",
+                hr_e.code, hr_e.body, query)
+            raise RepositoryError(
+                f"HTTPResponseError:\tCode:\t\
+                {hr_e.code}\tBody:\t{hr_e.body}\nQuery:\n{query}",
+                ) from None
         except ValidationError as validation_e:
-            logging.exception("Failed to query with:\n%s\n%s", query, validation_e)
+            logging.exception(
+                "Failed to query with:\n%s\n%s", query, validation_e)
             raise RepositoryError(
-                f"Failed to validate response with the model for query:\n{query}") from validation_e
+                f"Failed to query with:\n{query}\n{validation_e}") from None
         except Exception as e:
-            logging.exception("Unknown error happend for:\n%s\n%s", query, e)
-            raise RepositoryError(f"Unknown error happend for:\n{query}") from e
+            logging.exception(
+                "Unknown error happend for:\n%s", query)
+            raise RepositoryError(
+                f"Unknown error happend for:\n{query}") from e
 
     async def create_page(self, page: B, debug: bool) -> bool:
         raise NotImplementedError(

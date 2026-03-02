@@ -1,5 +1,5 @@
 import os
-from typing import Optional
+from typing import Dict, Optional
 from uuid import UUID
 
 from common_libs.constants.literal_definitions import JunctionRelationDefinition
@@ -21,11 +21,11 @@ class Config(BaseModel):
     trace_url: str
     trace_port: int
     notion_client_timeout_ms: float
-    
+
 
 
 def get_config() -> Config:
-    env_vars = {
+    env_vars: Dict[str, str | None] = {
         **dotenv_values(".env"),
         **os.environ
     }
@@ -43,7 +43,7 @@ def get_config() -> Config:
             "debug": (env_vars.get("DEBUG") or "False").lower() in ("true", "1"),
             "trace_url": env_vars.get("TRACE_URL") or None,
             "trace_port": int(env_vars.get("TRACE_PORT") or "8000"),
-            "notion_client_timeout_ms": float(env_vars.get(("NOTION_CLIENT_TIMEOUT_MS") or 10.0)),
+            "notion_client_timeout_ms": float(env_vars.get("NOTION_CLIENT_TIMEOUT_MS") or 10.0),
             }
         )
     except ValidationError as e:

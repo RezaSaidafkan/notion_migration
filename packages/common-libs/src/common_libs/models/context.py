@@ -9,7 +9,7 @@ from common_libs.constants.literal_definitions import (
     JunctionRelationDefinition,
     TaskRelationsDefinition,
 )
-from common_libs.models.client_models import RD, BP, B, J_co, P_co
+from common_libs.models.client_models import BP, RD, B, J_co, P_co
 
 if TYPE_CHECKING:
     from migration_engine.repo.repo_page_interface import RepositoryInterface

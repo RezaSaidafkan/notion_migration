@@ -81,7 +81,7 @@ class TestNotionRepoPage(unittest.IsolatedAsyncioTestCase):
 
         self.mock_notion_client = AsyncMock()
         mock_notion_client_class.return_value = self.mock_notion_client
-        self.repo = NotionRepoSource(notion_token="fake_token", debug=True)
+        self.repo = NotionRepoSource(notion_token="fake_token", time_out_ms=1000, debug=True)
 
     async def test_read_page(self):
         page = BasePage(Id=PageId(Id=UUID('{12345678-1234-5678-1234-567812345678}')))
@@ -241,11 +241,12 @@ class TestNotionRepoJournalPage(unittest.IsolatedAsyncioTestCase):
         self.client_patcher = patch("migration_engine.repo.repo_page_notion.Client")
         mock_notion_client_class = self.client_patcher.start()
         
-
+        timeout_ms = 10000
+        
         self.mock_notion_client = AsyncMock()
         mock_notion_client_class.return_value = self.mock_notion_client
         
-        self.repo = NotionRepoJournal("some_api_key", True)
+        self.repo = NotionRepoJournal("some_api_key", timeout_ms , True)
 
     async def test_read_page(self):
         page = BasePage(Id=PageId(Id=UUID('{12345678-1234-5678-1234-567812345678}')))

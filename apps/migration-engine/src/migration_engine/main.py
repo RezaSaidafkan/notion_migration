@@ -11,9 +11,9 @@ from common_libs.constants.literal_definitions import (
     TaskRelationsDefinition,
 )
 from common_libs.models.client_models import (
+    BasePage,
     JournalPage,
     PageId,
-    BasePage,
     TaskPage,
 )
 from common_libs.models.context import (
@@ -129,19 +129,19 @@ async def execute_migration_engine():
         await runner.run(
             source_parent_page_id=GLOBAL_CONFIG.source_parent_page_id
         )
-    except KeyError as ke:
+    except KeyError:
         raise MigrationEngineError(
-            "Failed to get proper input from environment variables") from ke
-    except ServiceError as se:
+            "Failed to get proper input from environment variables") from None
+    except ServiceError:
         raise MigrationEngineError(
-            "An error happened executing Migration Engine") from se
+            "An error happened executing Migration Engine") from None
 
 
 def main():
     start_time = perf_counter()
     asyncio.run(execute_migration_engine())
     end_time = perf_counter()
-    print(f"Asynchronous Execution time: {end_time - start_time} seconds")
+    logger.info("Asynchronous Execution time: %d seconds", end_time - start_time)
 
 
 if __name__ == "__main__":

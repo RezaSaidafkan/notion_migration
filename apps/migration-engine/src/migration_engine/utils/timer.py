@@ -12,10 +12,13 @@ async def timed(coro: Awaitable[Any], page: CommonPage, label: str, debug: bool 
         t0 = perf_counter()
         res = await coro
         t1 = perf_counter()
-        print(
-            f"[TIMING] {label} \
-              page={page.Id.Id, page.Properties.Title.title} \
-              took={t1 - t0:.3f}s"
+        logger.debug(
+            "[TIMING] %s \
+              page=%s %s \
+              took=%.3fs",
+              label,
+              page.Id.Id, page.Properties.Title.title,
+              t1 - t0
         )
     else:
         res = await coro
