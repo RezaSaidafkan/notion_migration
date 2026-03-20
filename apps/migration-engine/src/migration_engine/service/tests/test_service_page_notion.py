@@ -61,6 +61,7 @@ class TestServicePage(unittest.IsolatedAsyncioTestCase):
         source_datasource_id = UUID('{12345678-1234-5678-1234-567812345678}')
         journal_datasource_id = UUID('{22345678-1234-5678-1234-567812345678}')
         target_datasource_id = UUID('{32345678-1234-5678-1234-567812345678}')
+        execution_id = UUID('{02345678-1234-5678-1234-567812345678}')
         
         self.migration_context = MigrationContext[BasePage, TaskPage, JournalPage, RelationDefinitions](
             source_datasource_info=DatasourceInfo(
@@ -77,7 +78,7 @@ class TestServicePage(unittest.IsolatedAsyncioTestCase):
             junction_relation_definition=JunctionRelationDefinition.LIFE_STYLE,
         )
         
-        self.execution_context = ExecutionContext(page_size=10, debug=True)
+        self.execution_context = ExecutionContext(page_size=10, debug=True, execution_id=execution_id)
         
         self.service = ServicePage()
 

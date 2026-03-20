@@ -1,9 +1,10 @@
 from typing import Optional
+from venv import logger
 
 import httpx
 from typing_extensions import Self
 
-from common_libs.models.tracing import Body
+from common_libs.models.tracing_models import Body
 
 
 class TracingException(Exception):
@@ -27,6 +28,7 @@ class Tracing:
         try:
             with httpx.Client() as client:
                 response = client.post(f"{self._url}/trace_page", json=body.model_dump(mode="json"))
+                logger.debug(response)
                 response.raise_for_status()
         except httpx.HTTPError as t_e:
             raise TracingException(

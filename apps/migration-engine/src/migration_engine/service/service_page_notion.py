@@ -39,7 +39,6 @@ from migration_engine.service.service_page_interface import (
 logger = logging.getLogger(__name__)
 
 
-
 class ServicePage(
     ServicePageInterface[BasePage,
                          TaskPage,
@@ -77,11 +76,9 @@ class ServicePage(
                     Properties=retrieved_page.Properties,
                 )
         # pylint: disable=raise-missing-from
-        except RepositoryError:
-            logging.exception(
-                "Failed to read page_id: %s", page)
+        except RepositoryError as re:
             raise ServiceError(
-                f"Failed to read page_id: {page}")
+                f"Failed to read page_id: {page}") from re
 
     # pylint: disable=invalid-overridden-method
     @tracer
@@ -114,17 +111,14 @@ class ServicePage(
                     else:
                         logger.debug("Paginating result to cursor: %s", cursor)
             # pylint: disable=raise-missing-from
-            except RepositoryError:
+            except RepositoryError as re:
                 cursor_msg = f" at cursor: {cursor}" if cursor else ""
-                logger.exception(
-                    "Failed to query database:\t%s,\tcursor:\t%s,\tpage:\t%s",
-                    datasource_info, cursor_msg, page.Id)
                 raise ServiceError(
                     f"Failed to query database:\t\
                     {datasource_info},\t\
                     cursor:\t{cursor_msg},\t\
                     page:\t{page.Id}",
-                    )
+                    ) from re
         return pages
 
     # pylint: disable=invalid-overridden-method
@@ -163,14 +157,14 @@ class ServicePage(
                         )
                     )
         # pylint: disable=raise-missing-from
-        except* Exception as eg:
-            for e in eg.exceptions:
-                logger.exception(e)
-            logger.exception(
-                "An unknown Exception was raised for: %s", page.Properties.Title)
+        except* ServiceError as re:
             raise ServiceError(
-                f"An unknown Exception was raised for: {page.Properties.Title}")
-
+                f"Failed to get the hierarchy for \
+                    {page.Properties.Title}") from re
+        except* Exception as e:
+            raise ServiceError(
+                f"An unknown Exception raised creating \
+                    hierarchy for: {page.Properties.Title}") from e
         return collected
 
     # pylint: disable=invalid-overridden-method
@@ -194,9 +188,6 @@ class ServicePage(
                 datasource_info=datasource_info
             )
         except ServiceError as se:
-            logger.exception(
-                "Failed to create sub page for %s", page
-            )
             raise ServiceError(
                 f"Failed to create sub page for {page}",
             ) from se
@@ -273,8 +264,6 @@ class ServicePage(
                 logger.info("The page hierarchy:\n%s", page)
                 collected.append(page)
         except (RepositoryError, ServiceError) as e:
-            logger.exception(
-                "Failed to recurse for page: %s", page.Properties.Title)
             raise ServiceError(
                 f"Failed to recurse for page: {page.Properties.Title}") from e
 
@@ -307,11 +296,11 @@ class ServicePage(
             )
             for journ_page in sub_journal_pages:
                 self._service_execution_context.task_group.create_task(
-                self.process_journal_recursive(
-                    journ_page,
-                    migration_context,
-                    execution_context),
-                )
+                    self.process_journal_recursive(
+                        journ_page,
+                        migration_context,
+                        execution_context),
+                    )
 
     async def create_or_update_page(
         self,

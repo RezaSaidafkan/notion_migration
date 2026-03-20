@@ -33,5 +33,6 @@ class DatasourceInfo(Generic[BP, B, RD]):
 
 @dataclass
 class ExecutionContext:
+    execution_id: UUID4
     page_size: int
     debug: bool

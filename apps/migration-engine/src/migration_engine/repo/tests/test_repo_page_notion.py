@@ -128,7 +128,8 @@ class TestNotionRepoPage(unittest.IsolatedAsyncioTestCase):
         self.mock_notion_client.data_sources.query.return_value = mock_response
 
         db_id = UUID("22345678-1234-5678-1234-567812345678")
-        execution_context = ExecutionContext(debug=True, page_size=1)
+        execution_id = UUID('{02345678-1234-5678-1234-567812345678}')
+        execution_context = ExecutionContext(debug=True, page_size=1, execution_id=execution_id)
         
         filter_query = {
              'property': 'Ancestors',
@@ -164,6 +165,7 @@ class TestNotionRepoPage(unittest.IsolatedAsyncioTestCase):
         page_1 = BasePage(Id=PageId(Id=UUID('{12345678-1234-5678-1234-567812345678}')))
         page_2 = BasePage(Id=PageId(Id=UUID('{22345678-1234-5678-1234-567812345678}')))
         page_3 = BasePage(Id=PageId(Id=UUID('{32345678-1234-5678-1234-567812345678}')))
+        execution_id = UUID('{02345678-1234-5678-1234-567812345678}')
         
         mock_response_1 = {
             "results": [
@@ -192,7 +194,7 @@ class TestNotionRepoPage(unittest.IsolatedAsyncioTestCase):
         ]
 
         db_id = UUID('{42345678-1234-5678-1234-567812345678}')
-        execution_context = ExecutionContext(page_size=10, debug=True)
+        execution_context = ExecutionContext(page_size=10, debug=True, execution_id=execution_id)
 
         # Act
         # The repo's query_database loops until has_more is false.

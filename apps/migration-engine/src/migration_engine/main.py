@@ -2,7 +2,7 @@
 import asyncio
 import logging
 from time import perf_counter
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from common_libs.constants.literal_definitions import (
     JournalRelationsDefinition,
@@ -63,33 +63,37 @@ class Runner:
         try:
             root_base_page = BasePage(Id=PageId(Id=source_parent_page_id))
             root_task_page = await self.service.read_page(
-                root_base_page,
-                self._execution_context,
-                self._migration_context)
+                page=root_base_page,
+                execution_context=self._execution_context,
+                migration_context=self._migration_context)
 
             _ = await self.service.build_page_hierarchy(
                 page=root_task_page,
                 execution_context=self._execution_context,
                 migration_context=self._migration_context)
 
-            logger.info("Root Page Hierarchy:\n%s\nLeaves Count:%s",
-                        root_task_page, count_leaves(root_task_page))
-        except ValidationError as page_id_e:
-            logger.exception("Failed to validate PageId: %s: %s",
-                             source_parent_page_id, page_id_e)
-            raise page_id_e
+            logger.info("Root Page Hierarchy:\nLeaves Count:%s",
+                        count_leaves(root_task_page))
+        except ValidationError:
+            raise MigrationEngineError(
+                "Failed to validate PageId: {source_parent_page_id}") from None
+        except ServiceError as e:
+            raise MigrationEngineError(
+                "Migration Failed") from e
         except Exception as e:
-            logger.exception("Unknown error happened: %s", e)
-            raise e
+            raise MigrationEngineError(
+                "An uncaught error happened") from e
 
 
 async def execute_migration_engine():
+    execution_id=uuid4()
     try:
-        _ = Tracing(address=GLOBAL_CONFIG.trace_url,
-                    port=GLOBAL_CONFIG.trace_port)
+        _ = Tracing(address=GLOBAL_CONFIG.tracing_url,
+                    port=GLOBAL_CONFIG.tracing_port)
         _ = RateLimiter(max_rate=3, time_period=1)
 
         execution_context = ExecutionContext(
+            execution_id=execution_id,
             debug=GLOBAL_CONFIG.debug,
             page_size=GLOBAL_CONFIG.page_size,
         )
@@ -131,17 +135,21 @@ async def execute_migration_engine():
         )
     except KeyError:
         raise MigrationEngineError(
-            "Failed to get proper input from environment variables") from None
-    except ServiceError:
+            f"Failed to get proper input from environment variables \
+                for execution_id: {execution_id}") from None
+    except MigrationEngineError as me:
         raise MigrationEngineError(
-            "An error happened executing Migration Engine") from None
+            f"An error happened executing Migration Engine for \
+                execution_id: {execution_id}") from me
 
 
 def main():
     start_time = perf_counter()
-    asyncio.run(execute_migration_engine())
-    end_time = perf_counter()
-    logger.info("Asynchronous Execution time: %d seconds", end_time - start_time)
+    try:
+        asyncio.run(execute_migration_engine())
+    finally:
+        end_time = perf_counter()
+        logger.info("Asynchronous Execution time: %d seconds", end_time - start_time)
 
 
 if __name__ == "__main__":

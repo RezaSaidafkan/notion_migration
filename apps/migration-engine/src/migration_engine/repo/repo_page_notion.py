@@ -1,7 +1,7 @@
 import logging
 from abc import abstractmethod
 from dataclasses import dataclass
-from typing import Generic, List
+from typing import Any, Dict, Generic, List
 from uuid import UUID
 
 from common_libs.constants.literal_definitions import RelationDefinitions
@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 class ClientSingleton:
     _instance = None
 
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls, *args: Any, **kwargs: Any):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
@@ -62,18 +62,13 @@ class NotionRepository(
             api_page = ApiPage(**raw_result)
             page = self.convert_client_page(api_page)
             return page
-        except APIResponseError:
-            logger.exception(
-                "Failed to retrieve page %s", page)
+        except APIResponseError as api_e:
             raise RepositoryError(
-                f"Failed to retrieve page {page}") from None
-        except ValidationError:
-            logger.exception(
-                "Failed to validate response with the model for page %s", page)
+                f"Failed to retrieve page {page}") from api_e
+        except ValidationError as ve:
             raise RepositoryError(
-                f"Failed to validate response with the model for page {page}") from None
+                f"Failed to validate response with the model for page {page}") from ve
         except Exception as e:
-            logger.exception("Unknown error happend")
             raise RepositoryError("Unknown error happend") from e
 
     @abstractmethod
@@ -90,16 +85,16 @@ class NotionRepository(
         execution_context: ExecutionContext,
         data_source_id: UUID,
         relation: RelationDefinitions,
-        cursor: str | None = None
+        cursor: str | None = None,
     ) -> PaginationResult[B]:
         try:
             filter_query = translate(relation=relation, page=page)
-            query = {
+            query: Dict[str, Any] = {
                 "start_cursor": cursor,
                 "filter": filter_query or {},
                 "page_size": execution_context.page_size,
             }
-            resp = await self.notion.data_sources.query(str(data_source_id), **query)
+            resp: Any = await self.notion.data_sources.query(str(data_source_id), **query)
 
             if execution_context.debug:
                 logger.debug(
@@ -116,44 +111,30 @@ class NotionRepository(
                 has_more=resp["has_more"],
                 next_cursor=resp.get("next_cursor"),
             )
-        except KeyError as key_error:
-            logging.exception(
-                "Failed to parse API response to internal model:\n%s\n%s",
-                key_error, resp)
+        except KeyError:
             raise RepositoryError(
                 f"Failed to parse API response to internal model:\n\
-                    {key_error}\n{resp}",
+                    {resp}",
                 ) from None
         except RequestTimeoutError as rto_e:
-            logging.exception(
-                "%s\nFor Query:\n%s", rto_e, query)
             raise RepositoryError(
-                f"{rto_e}\nFor Query:\n{query}") from None
+                f"RequestTimeoutError:\tCode:\t\
+                {rto_e.code}\nFor Query:\n{query}") from None
         except APIResponseError as api_e:
-            logging.exception(
-                "APIResponseError:\tCode:\t\
-                %s\tBody:\t%s\nQuery:\n%s", api_e.code, api_e.body, query
-                )
             raise RepositoryError(
                 f"APIResponseError:\tCode:\t\
                 {api_e.code}\tBody:\t{api_e.body}\nQuery:\n{query}",
                 ) from None
         except HTTPResponseError as hr_e:
-            logging.exception(
-                "HTTPResponseError:\tCode:\t%s\tBody:\t%s\nQuery:\n%s",
-                hr_e.code, hr_e.body, query)
             raise RepositoryError(
                 f"HTTPResponseError:\tCode:\t\
                 {hr_e.code}\tBody:\t{hr_e.body}\nQuery:\n{query}",
                 ) from None
         except ValidationError as validation_e:
-            logging.exception(
-                "Failed to query with:\n%s\n%s", query, validation_e)
             raise RepositoryError(
-                f"Failed to query with:\n{query}\n{validation_e}") from None
+                f"ValidationError:\n\tCode:\t\
+                {validation_e.json()} Failed to query with:\n{query}") from None
         except Exception as e:
-            logging.exception(
-                "Unknown error happend for:\n%s", query)
             raise RepositoryError(
                 f"Unknown error happend for:\n{query}") from e
 
