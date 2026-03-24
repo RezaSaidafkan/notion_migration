@@ -3,7 +3,6 @@ import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID
 from typing import Dict, Any
-import pytest
 
 from common_libs.models.api_models import ApiPage
 from common_libs.models.client_models import (PageId,

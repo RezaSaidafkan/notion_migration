@@ -3,7 +3,6 @@ import traceback
 from collections.abc import Coroutine
 from functools import wraps
 from typing import Any, Callable, Concatenate, cast
-from venv import logger
 
 from migration_engine.repo.notion_object_mapping.notion_object_map import BasePage
 
@@ -16,6 +15,8 @@ from common_libs.models.tracing_models import (
     TracePageBody,
 )
 from common_libs.singletons.tracing_singleton import Tracing, TracingException
+
+logger = logging.getLogger(__name__)
 
 
 def tracer[T, R, **P](
@@ -36,8 +37,7 @@ def tracer[T, R, **P](
 
     @wraps(coro)
     async def wrapper(instance: T, *args: P.args, **kwargs: P.kwargs) -> R:
-        # 1. Extract 'page' from the arguments passed to the method.
-        # We check kwargs first (common for named args), then look in args.
+        # 1. Extract 'page' and 'execution_context' from args or kwargs
         page = cast(BasePage, kwargs.get("page"))
         execution_context = cast(ExecutionContext, kwargs.get("execution_context"))
 
@@ -45,7 +45,7 @@ def tracer[T, R, **P](
             # 2. Execute the original method as-is
             res = await coro(instance, *args, **kwargs)
 
-            # 3. Use the extracted page for tracing
+            # 3. Use the extracted page for tracing (only if we have valid context)
             tracing.send_trace_page(
                 Body(
                     execution_id=execution_context.execution_id,
@@ -58,29 +58,30 @@ def tracer[T, R, **P](
             )
             return res
         except TracingException as te:
-            logger.debug("Caught! AAA")
-            logging.exception(
-                "Tracing failed: %s", te)
+            logging.exception("Tracing failed: %s", te)
             raise
-        except Exception as e:
-            logger.debug("Caught! AAA")
-            # 4. Error tracing logic
-            tracing.send_trace_page(
-                Body(
-                    execution_id=execution_context.execution_id,
-                    page=TracePage(id=page.Id.Id),
-                    trace=TracePageBody(function_name=__name__ + ".query_database",
-                                        outcome=Monad(
-                                            success=False,
-                                            failure=Failure(
-                                                    exception_type=str(type(e)),
-                                                    exception_value=str(e),
-                                                    exception_traceback=traceback.format_exc()
-                                                    )
-                                                )
-                                        )
+        except (BaseException, Exception) as e:
+            # 4. Error tracing logic (only if we have valid context)
+            try:
+                tracing.send_trace_page(
+                    Body(
+                        execution_id=execution_context.execution_id,
+                        page=TracePage(id=page.Id.Id),
+                        trace=TracePageBody(
+                            function_name=f"{coro.__module__}.{coro.__name__}",
+                            outcome=Monad(
+                                success=False,
+                                failure=Failure(
+                                    exception_type=str(type(e).__name__),
+                                    exception_value=str(e),
+                                    exception_traceback=traceback.format_exc()
+                                )
+                            )
+                        )
                     )
                 )
-            logger.debug("SENT! AAA")
+
+            except TracingException as te:
+                logger.exception("Failed to send error trace: %s", type(te).__name__)
             raise
     return wrapper

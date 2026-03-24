@@ -19,6 +19,7 @@ from common_libs.models.client_models import (
 from common_libs.models.context import ExecutionContext
 from common_libs.utils.rate_limiter import rate_limited
 from common_libs.utils.tracing import tracer
+from httpcore import ConnectError
 from notion_client import AsyncClient as Client
 from notion_client.errors import (
     APIResponseError,
@@ -116,6 +117,9 @@ class NotionRepository(
                 f"Failed to parse API response to internal model:\n\
                     {resp}",
                 ) from None
+        except ConnectError as c_e:
+            raise RepositoryError(
+                f"{type(c_e)}") from None
         except RequestTimeoutError as rto_e:
             raise RepositoryError(
                 f"RequestTimeoutError:\tCode:\t\

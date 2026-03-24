@@ -12,6 +12,6 @@ class TraceLog(SQLModel, table=True):
     function_name: str
     timestamp: datetime
     success: bool
-    outcome_exception_type: Optional[str]
-    outcome_exception_value: Optional[str]
-    outcome_exception_traceback: Optional[str]
+    outcome_exception_type: Optional[str] = None
+    outcome_exception_value: Optional[str] = None
+    outcome_exception_traceback: Optional[str] = None

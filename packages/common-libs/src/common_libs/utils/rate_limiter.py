@@ -12,7 +12,10 @@ def rate_limited[T, R, **P](
     @wraps(coro)
     async def wrapper(*args: Any, **kwargs: Any) -> R:
         async with RateLimiter() as rl:
-            async with rl:
-                result = await coro(*args, **kwargs)
-                return result
+            try:
+                async with rl:
+                    result = await coro(*args, **kwargs)
+                    return result
+            except (BaseException, Exception) as e:
+                raise e
     return wrapper

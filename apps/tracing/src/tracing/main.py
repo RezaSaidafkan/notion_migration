@@ -16,10 +16,7 @@ from tracing.config.load_config import TRACING_CONFIG
 from tracing.db.crud import (
     create_queue,
     create_session,
-    get_all_from_db,
-    get_by_page_id_from_db,
-    get_failures_from_db,
-    get_results_by_execution_id_from_db,
+    get_results_from_db,
     setup_database,
     write_to_db,
 )
@@ -59,50 +56,24 @@ async def trace_page(body: Body, request: Request, background_tasks: BackgroundT
         session=get_session(request))
     return Response(status_code=status.HTTP_202_ACCEPTED)
 
-@app.get("/get_table")
-def get_table(request: Request) -> Response:
-    bodies = get_all_from_db(get_session(request))
-    return Response(
-        status_code=status.HTTP_206_PARTIAL_CONTENT,
-        content="\n".join(
-            [b.model_dump_json(
-                exclude={"id"}
-            )
-             for b in bodies]))
-
-@app.get("/get_page_by_id")
-def get_page_id(request: Request, page_id: UUID) -> Response:
-    bodies = get_by_page_id_from_db(get_session(request), page_id)
-    return Response(
-        status_code=status.HTTP_202_ACCEPTED,
-        content="\n".join(
-            [b.model_dump_json(
-                exclude={"outcome_exception_traceback", "id", "page_id"})
-             for b in bodies]))
-
-
-@app.get("/get_failures")
-def get_failures(request: Request, cutoff_date: Optional[datetime] = None) -> Response:
-    bodies = get_failures_from_db(get_session(request), cutoff_date)
-    return Response(
-        status_code=status.HTTP_202_ACCEPTED,
-        content="\n".join(
-            [b.model_dump_json(
-                exclude={"outcome_exception_traceback", "id", "success"})
-             for b in bodies]))
-
-
-@app.get("/get_results_by_execution_id")
-def get_results_by_execution_id(
+@app.get("/get_results")
+def get_results(
     request: Request,
-    execution_id: UUID,
-    failed_only: Optional[Boolean]=False) -> Response:
-    bodies = get_results_by_execution_id_from_db(get_session(request), execution_id, failed_only)
+    execution_id: Optional[UUID] = None,
+    failed_only: Optional[Boolean] = False,
+    page_id: Optional[UUID] = None,
+    cutoff_date: Optional[datetime] = None) -> Response:
+    bodies = get_results_from_db(
+        get_session(request),
+        execution_id,
+        cutoff_date,
+        page_id,
+        failed_only)
     return Response(
         status_code=status.HTTP_202_ACCEPTED,
         content="\n".join(
             [b.model_dump_json(
-                exclude={"outcome_exception_traceback", "id", "execution_id"})
+                exclude={"outcome_exception_traceback", "id"})
              for b in bodies]))
 
 @app.get("/get_queue_state")

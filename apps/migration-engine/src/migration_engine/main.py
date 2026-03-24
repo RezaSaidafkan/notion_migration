@@ -72,6 +72,7 @@ class Runner:
                 execution_context=self._execution_context,
                 migration_context=self._migration_context)
 
+
             logger.info("Root Page Hierarchy:\nLeaves Count:%s",
                         count_leaves(root_task_page))
         except ValidationError:
