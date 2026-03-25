@@ -11,7 +11,7 @@ config = {
     "journal_datasource_id": str(uuid4()),
     "target_datasource_id": str(uuid4()),
     "source_parent_page_id": str(uuid4()),
-    "junction_relation_definition": "Life Style",
+    "junction_relation_definition": JunctionRelationDefinition.LIFE_STYLE.value,
     "page_size": "10",
     "semaphore_limit": "10",
     "debug": "True",
