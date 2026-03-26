@@ -36,6 +36,7 @@ from migration_engine.repo.repo_page_interface import (
 
 logger = logging.getLogger(__name__)
 
+ATTEMPT_TRIAL_NUMBER = 3
 
 # pylint: disable=too-few-public-methods
 class ClientSingleton:
@@ -88,14 +89,18 @@ class NotionRepository(
         relation: RelationDefinitions,
         cursor: str | None = None,
     ) -> PaginationResult[B]:
+        query: Dict[str, str | int | Dict[str, str | Dict[str, str]]] = {}
+        resp: Any = None
+
         try:
             filter_query = translate(relation=relation, page=page)
-            query: Dict[str, Any] = {
-                "start_cursor": cursor,
-                "filter": filter_query or {},
-                "page_size": execution_context.page_size,
-            }
-            resp: Any = await self.notion.data_sources.query(str(data_source_id), **query)
+
+            query["filter"] = filter_query if filter_query else {}
+            query["page_size"] = execution_context.page_size
+            if cursor:
+                query["start_cursor"] = cursor
+
+            resp = await self.notion.data_sources.query(str(data_source_id), **query)
 
             if execution_context.debug:
                 logger.debug(
@@ -136,7 +141,7 @@ class NotionRepository(
                 ) from None
         except ValidationError as validation_e:
             raise RepositoryError(
-                f"ValidationError:\n\tCode:\t\
+                f"ValidationError:\n\
                 {validation_e.json()} Failed to query with:\n{query}") from None
         except Exception as e:
             raise RepositoryError(

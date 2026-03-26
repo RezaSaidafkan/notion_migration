@@ -11,6 +11,7 @@ from common_libs.constants.literal_definitions import (
 
 from .api_models import (
     ExternalEmoji,
+    IconEmoji,
     IconProperty,
     PeopleProperty,
     RichTextProperty,
@@ -146,7 +147,7 @@ class BasePage(BaseModel):
 #     Id: K
 class CommonPage(BasePage):
     Properties: Union[TaskProperties, JournalProperties]
-    Icon: Optional[IconProperty | ExternalEmoji]
+    Icon: Optional[IconEmoji | IconProperty | ExternalEmoji]
 
     def __repr__(self):
         icon = self.Icon.__repr__() if self.Icon else ""

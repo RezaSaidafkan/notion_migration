@@ -7,11 +7,12 @@ from pydantic import BaseModel
 
 External = Literal["external"]
 Emoji = Literal["emoji"]
+Icon = Literal["icon"]
 
 
 class ExternalEmoji(BaseModel):
     type: External
-    external: dict
+    external: Dict[Any, Any]
 
 
 class IconProperty(BaseModel):
@@ -20,6 +21,14 @@ class IconProperty(BaseModel):
 
     def __repr__(self):
         return self.emoji
+
+
+class IconEmoji(BaseModel):
+    type: Icon
+    icon: Dict[str, Any]
+
+    def __repr__(self):
+        return self.icon.get("name", "")
 
 
 class Relation(BaseModel):
@@ -230,5 +239,5 @@ class ApiPageProperties(BaseModel):
 
 class ApiPage(BaseModel):
     id: UUID
-    icon: Optional[IconProperty | ExternalEmoji]
+    icon: Optional[IconProperty | ExternalEmoji | IconEmoji]
     properties: ApiPageProperties

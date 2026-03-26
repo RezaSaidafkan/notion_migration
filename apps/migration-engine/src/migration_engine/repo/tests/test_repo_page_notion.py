@@ -146,7 +146,7 @@ class TestNotionRepoPage(unittest.IsolatedAsyncioTestCase):
 
         # Assert
         self.mock_notion_client.data_sources.query.assert_awaited_once_with(
-            str(db_id), start_cursor=None, filter=filter_query, page_size=execution_context.page_size
+            str(db_id), filter=filter_query, page_size=execution_context.page_size
         )
         self.assertIsInstance(result, PaginationResult)
         self.assertFalse(result.has_more)
