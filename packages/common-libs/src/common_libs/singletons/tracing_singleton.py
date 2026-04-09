@@ -1,8 +1,7 @@
-from typing import Optional
+from typing import Any, Dict, Optional
 from venv import logger
 
 import httpx
-from typing_extensions import Self
 
 from common_libs.models.tracing_models import Body
 
@@ -11,18 +10,22 @@ class TracingException(Exception):
     pass
 
 
-class Tracing:
+class Singleton(type):
     singleton = None
+    instances: Dict[Singleton, Any] = {}
 
+    def __call__(cls, *args: Any, **kwds: Any) -> Any:
+        if not cls.instances:
+            instance = super().__call__(*args, **kwds)
+            cls.instances[cls] = instance
+        return cls.instances[cls]
+
+# pylint: disable=too-few-public-methods
+class Tracing(metaclass=Singleton):
     def __init__(self, address: Optional[str]=None, port: Optional[int]=None) -> None:
         self._address = address
         self._port = port
         self._url = f"http://{self._address}:{self._port}"
-
-    def __new__(cls, address: Optional[str]=None, port: Optional[int]=None) -> Self:
-        if not cls.singleton:
-            cls.singleton = super().__new__(cls)
-        return cls.singleton
 
     def send_trace_page(self, body: Body):
         try:

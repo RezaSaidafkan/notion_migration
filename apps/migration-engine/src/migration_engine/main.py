@@ -23,7 +23,6 @@ from common_libs.models.context import (
 )
 from common_libs.singletons.rate_limiter_singleton import RateLimiter
 from common_libs.singletons.tracing_singleton import Tracing
-from pydantic import ValidationError
 
 import migration_engine.service.service_page_notion as spn
 from migration_engine.config.load_config import GLOBAL_CONFIG
@@ -53,45 +52,34 @@ class Runner:
         self._execution_context = execution_context
         self.service = spn.ServicePage()
 
-        logging.basicConfig(
-            level=logging.DEBUG if execution_context.debug else logging.INFO)
-
     async def run(
         self,
         source_parent_page_id: UUID,
-    ) -> None:
-        try:
-            root_base_page = BasePage(Id=PageId(Id=source_parent_page_id))
-            root_task_page = await self.service.read_page(
-                page=root_base_page,
-                execution_context=self._execution_context,
-                migration_context=self._migration_context)
+    ) -> TaskPage:
+        root_base_page = BasePage(Id=PageId(Id=source_parent_page_id))
+        root_task_page = await self.service.read_page(
+            page=root_base_page,
+            execution_context=self._execution_context,
+            migration_context=self._migration_context)
 
-            _ = await self.service.build_page_hierarchy(
-                page=root_task_page,
-                execution_context=self._execution_context,
-                migration_context=self._migration_context)
+        _ = await self.service.build_page_hierarchy(
+            page=root_task_page,
+            execution_context=self._execution_context,
+            migration_context=self._migration_context)
 
-
-            logger.info("Root Page Hierarchy:\nLeaves Count:%s",
-                        count_leaves(root_task_page))
-        except ValidationError:
-            raise MigrationEngineError(
-                "Failed to validate PageId: {source_parent_page_id}") from None
-        except ServiceError as e:
-            raise MigrationEngineError(
-                "Migration Failed") from e
-        except Exception as e:
-            raise MigrationEngineError(
-                "An uncaught error happened") from e
+        return root_task_page
 
 
 async def execute_migration_engine():
-    execution_id=uuid4()
+    execution_id = uuid4()
+
+    if GLOBAL_CONFIG.debug:
+        logger.debug("execution_id: '%s'", execution_id)
     try:
         _ = Tracing(address=GLOBAL_CONFIG.tracing_url,
                     port=GLOBAL_CONFIG.tracing_port)
-        _ = RateLimiter(max_rate=3, time_period=1)
+        _ = RateLimiter(max_rate=GLOBAL_CONFIG.max_rate,
+                        time_period=GLOBAL_CONFIG.time_period)
 
         execution_context = ExecutionContext(
             execution_id=execution_id,
@@ -131,14 +119,17 @@ async def execute_migration_engine():
 
         runner = Runner(execution_context, migration_context)
 
-        await runner.run(
+        root_task_page = await runner.run(
             source_parent_page_id=GLOBAL_CONFIG.source_parent_page_id
         )
+        logger.info("Root Page Hierarchy:\nLeaves Count:%s",
+                    count_leaves(root_task_page))
+
     except KeyError:
         raise MigrationEngineError(
             f"Failed to get proper input from environment variables \
                 for execution_id: {execution_id}") from None
-    except MigrationEngineError as me:
+    except ServiceError as me:
         raise MigrationEngineError(
             f"An error happened executing Migration Engine for \
                 execution_id: {execution_id}") from me
@@ -146,6 +137,9 @@ async def execute_migration_engine():
 
 def main():
     start_time = perf_counter()
+    logging.basicConfig(
+        level=logging.DEBUG if GLOBAL_CONFIG.debug else logging.INFO,
+        format="%(levelname)s [%(asctime)s] %(name)s - %(message)s")
     try:
         asyncio.run(execute_migration_engine())
     finally:

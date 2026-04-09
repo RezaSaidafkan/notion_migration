@@ -1,17 +1,23 @@
-from typing import Optional
 from uuid import UUID
 
 from common_libs.constants.literal_definitions import JunctionRelationDefinition
 from common_libs.utils.load_config import get_env_vars
 from pydantic import UUID4, BaseModel, ValidationError
 
+DEFAULT_TIME_PERIOD = 1
+DEFAULT_MAX_RATE = 3
+DEFAULT_NOTION_CLIENT_TIMEOUT_MS = 10
+DEFAULT_SEMAPHORE_LIMIT = 10
+DEFAULT_PAGE_SIZE = 1
+DEFFAULT_TRACING_PORT = 8000
+DEFAULT_TIMEOUT_RETRY = 5
 
 # pylint: disable = too-many-instance-attributes
 class Config(BaseModel):
     notion_api_key: str
     source_datasource_id: UUID4
     journal_datasource_id: UUID4
-    target_datasource_id: Optional[UUID4]
+    target_datasource_id: UUID4
     source_parent_page_id: UUID
     junction_relation_definition: JunctionRelationDefinition
     page_size: int
@@ -20,7 +26,9 @@ class Config(BaseModel):
     tracing_url: str
     tracing_port: int
     notion_client_timeout_ms: float
-
+    time_period: int
+    max_rate: int
+    timeout_retry: int
 
 
 def get_config() -> Config:
@@ -34,12 +42,17 @@ def get_config() -> Config:
             "target_datasource_id": env_vars.get("TARGET_DATASOURCE_ID"),
             "source_parent_page_id": env_vars.get("SOURCE_PARENT_PAGE_ID"),
             "junction_relation_definition": env_vars.get("JUNCTION_RELATION_DEFINITION"),
-            "page_size": int(env_vars.get("PAGE_SIZE") or "1"),
-            "semaphore_limit": int(env_vars.get("SEMAPHORE_LIMIT") or "10"),
+            "page_size": int(env_vars.get("PAGE_SIZE") or DEFAULT_PAGE_SIZE),
+            "semaphore_limit": int(env_vars.get("SEMAPHORE_LIMIT") or DEFAULT_SEMAPHORE_LIMIT),
             "debug": (env_vars.get("DEBUG") or "False").lower() in ("true", "1"),
             "tracing_url": env_vars.get("TRACING_URL"),
-            "tracing_port": int(env_vars.get("TRACING_PORT") or "8000"),
-            "notion_client_timeout_ms": float(env_vars.get("NOTION_CLIENT_TIMEOUT_MS") or 10.0),
+            "tracing_port": int(env_vars.get("TRACING_PORT") or DEFFAULT_TRACING_PORT),
+            "notion_client_timeout_ms":
+                float(env_vars.get("NOTION_CLIENT_TIMEOUT_MS") or DEFAULT_NOTION_CLIENT_TIMEOUT_MS),
+            "time_period": int(env_vars.get("TIME_PERIOD") or DEFAULT_TIME_PERIOD),
+            "max_rate": int(env_vars.get("MAX_RATE") or DEFAULT_MAX_RATE),
+            "timeout_retry": int(env_vars.get("TIMEOUT_RETRY") or DEFAULT_TIMEOUT_RETRY)
+
             }
         )
     except ValidationError as e:

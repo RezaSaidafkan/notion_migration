@@ -17,7 +17,7 @@ config = {
     "debug": "True",
     "tracing_url": "some/url",
     "tracing_port": "1234",
-    "notion_client_timeout_ms": "60000.0"
+    "notion_client_timeout_ms": "50.0"
     }
 
 # Required environment variables for config loading
@@ -39,43 +39,51 @@ env_vars_for_test = {
 
 class TestTracing(unittest.IsolatedAsyncioTestCase):
     @patch.dict(os.environ, env_vars_for_test)
+    @patch("migration_engine.main.NotionRepoSource")
+    @patch("migration_engine.main.NotionRepoJournal")
     @patch("migration_engine.repo.repo_page_notion.NotionRepoSource")
     @patch("migration_engine.repo.repo_page_notion.NotionRepoJournal")
     async def test_tracing_on_exception(
         self,
-        mocked_notion_repo_journal,
-        mocked_notion_repo_source):
-        
-        with patch("common_libs.utils.tracing.Tracing") as mocked_tracing:
+        mocked_notion_repo_journal_def: MagicMock,
+        mocked_notion_repo_source_def: MagicMock,
+        mocked_notion_repo_journal: MagicMock,
+        mocked_notion_repo_source: MagicMock):
+        # Arrange
+
+        with patch("common_libs.utils.tracing.Tracing") as mocked_tracing,\
+            patch("migration_engine.repo.repo_page_notion.retry"),\
+            patch("migration_engine.repo.repo_page_notion.rate_limited"):
             from migration_engine.repo.repo_page_interface import RepositoryError
-            from migration_engine.main import execute_migration_engine, MigrationEngineError
             
             # Setup the mock instances that will be returned when the classes are instantiated
             
             mock_source_instance = AsyncMock()
-            mock_source_instance.read_page = AsyncMock(side_effect=RepositoryError("Mocked read_page Error"))
-            mock_source_instance.query_database = AsyncMock(side_effect=RepositoryError("Mocked query_database Error"))
+            mock_source_instance.read_page = AsyncMock(side_effect=[RepositoryError(message="Mocked read_page Error")] * 4)
+            mock_source_instance.query_database = AsyncMock(side_effect=[RepositoryError(message="Mocked query_database Error")] * 4)
             mocked_notion_repo_source.return_value = mock_source_instance
+            mocked_notion_repo_source_def.return_value = mock_source_instance
             
             mock_journal_instance = AsyncMock()
-            mock_journal_instance.read_page = AsyncMock(side_effect=RepositoryError("Mocked read_page Error"))
-            mock_journal_instance.query_database = AsyncMock(side_effect=RepositoryError("Mocked query_database Error"))
+            mock_journal_instance.read_page = AsyncMock(side_effect=[RepositoryError(message="Mocked read_page Error")] * 4)
+            mock_journal_instance.query_database = AsyncMock(side_effect=[RepositoryError(message="Mocked query_database Error")] * 4)
             mocked_notion_repo_journal.return_value = mock_journal_instance
-            
+            mocked_notion_repo_journal_def.return_value = mock_journal_instance
 
             mocked_tracing_singleton = MagicMock(name="mocked_tracing_singleton")
             mocked_tracing.return_value = mocked_tracing_singleton
             mocked_send_trace_page = MagicMock(name="send_trace_page")
             mocked_tracing_singleton.send_trace_page = mocked_send_trace_page
+            
+            # Act & Assert
+            from migration_engine.main import execute_migration_engine, MigrationEngineError
             with self.assertRaises(MigrationEngineError):
                 await execute_migration_engine()
-            mocked_tracing.return_value.send_trace_page.assert_called_once()            
-        
-        
-    
+            mocked_tracing.return_value.send_trace_page.assert_called_once()
+            assert "Mocked read_page Error" in str(mocked_tracing.return_value.send_trace_page.mock_calls[0])
+
     def tearDown(self):
         pass
-        
 
 
 if __name__ == "__main__":

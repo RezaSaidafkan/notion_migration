@@ -13,7 +13,8 @@ dependencies = [
     "dotenv>=0.9.9",
     "notion-client>=2.7.0",
     "pydantic>=2.12.5",
-    "common-libs"
+    "common-libs",
+    "tenacity>=9.1.4",
 ]
 
 [dependency-groups]

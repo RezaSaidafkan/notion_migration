@@ -1,0 +1,368 @@
+{
+    "archived": false,
+    "cover": null,
+    "created_by": {
+        "id": "999b0072-4d59-4606-bd75-f640782bff1e",
+        "object": "user"
+    },
+    "created_time": "2024-09-05T11:45:00.000Z",
+    "icon": {
+        "emoji": "🛰️",
+        "type": "emoji"
+    },
+    "id": "9992af73-57af-8086-b134-eb56249ef217",
+    "in_trash": false,
+    "is_archived": false,
+    "is_locked": false,
+    "last_edited_by": {
+        "id": "999b0072-4d59-4606-bd75-f640782bff1e",
+        "object": "user"
+    },
+    "last_edited_time": "2026-04-10T10:15:00.000Z",
+    "object": "page",
+    "parent": {
+        "data_source_id": "f2bfe8c6-90f5-43d0-bbfd-f2425c5f91af",
+        "database_id": "55b6127f-5aef-42ca-9f2d-57514d62514d",
+        "type": "data_source_id"
+    },
+    "properties": {
+        "Acceptance Criteria": {
+            "id": "r%3AmD",
+            "rich_text": [
+                {
+                    "annotations": {
+                        "bold": false,
+                        "italic": false,
+                        "strikethrough": false,
+                        "underline": false,
+                        "code": false,
+                        "color": "default"
+                    },
+                    "plain_text": "Signal-to-noise ratio above 15dB across all nodes.",
+                    "text": {
+                        "content": "Signal-to-noise ratio above 15dB across all nodes.",
+                        "link": null
+                    },
+                    "type": "text"
+                }
+            ],
+            "type": "rich_text"
+        },
+        "Ancestors": {
+            "has_more": false,
+            "id": "bkn%3B",
+            "relation": [],
+            "type": "relation"
+        },
+        "Apartments Tracker": {
+            "has_more": false,
+            "id": "%7BlWJ",
+            "relation": [],
+            "type": "relation"
+        },
+        "Assignee": {
+            "id": "%7BEm%5C",
+            "people": [
+                {
+                    "id": "999b0072-4d59-4606-bd75-f640782bff1e",
+                    "object": "user",
+                    "name": "Cmdr. Chris Hadfield",
+                    "type": "person",
+                    "person": {
+                        "email": "hadfield@orbital.sys"
+                    }
+                }
+            ],
+            "type": "people"
+        },
+        "Authors": {
+            "id": "_%5DJ%5B",
+            "select": {
+                "color": "red",
+                "id": "auth-3",
+                "name": "Flight Engineer"
+            },
+            "type": "select"
+        },
+        "Blocked by": {
+            "has_more": false,
+            "id": "rqut",
+            "relation": [],
+            "type": "relation"
+        },
+        "Blocking": {
+            "has_more": false,
+            "id": "%5E%7D%3FE",
+            "relation": [],
+            "type": "relation"
+        },
+        "Cameras Table": {
+            "has_more": false,
+            "id": "fP%3BT",
+            "relation": [],
+            "type": "relation"
+        },
+        "Category": {
+            "id": "shHy",
+            "multi_select": [
+                {
+                    "color": "orange",
+                    "id": "cat-aero-01",
+                    "name": "🌌 Aerospace"
+                }
+            ],
+            "type": "multi_select"
+        },
+        "Created time": {
+            "created_time": "2024-09-05T11:45:00.000Z",
+            "id": "%5EDl_",
+            "type": "created_time"
+        },
+        "Current Log": {
+            "formula": {
+                "string": "Orbit Stabilized",
+                "type": "string"
+            },
+            "id": "ahg%7B",
+            "type": "formula"
+        },
+        "Descendants": {
+            "has_more": false,
+            "id": "jXn%60",
+            "relation": [],
+            "type": "relation"
+        },
+        "Description": {
+            "id": "description_property",
+            "rich_text": [
+                {
+                    "annotations": {
+                        "bold": false,
+                        "italic": false,
+                        "strikethrough": false,
+                        "underline": false,
+                        "code": false,
+                        "color": "default"
+                    },
+                    "plain_text": "Routine trajectory correction for Starlink Mesh v4.",
+                    "text": {
+                        "content": "Routine trajectory correction for Starlink Mesh v4.",
+                        "link": null
+                    },
+                    "type": "text"
+                }
+            ],
+            "type": "rich_text"
+        },
+        "Duration": {
+            "id": "%3FTC%3B",
+            "number": 45,
+            "type": "number"
+        },
+        "Estimates": {
+            "id": "cNPF",
+            "number": 2,
+            "type": "number"
+        },
+        "Excursions": {
+            "has_more": false,
+            "id": "fs%5Du",
+            "relation": [],
+            "type": "relation"
+        },
+        "ID": {
+            "id": "plJ%3B",
+            "type": "unique_id",
+            "unique_id": {
+                "number": 999,
+                "prefix": "SAT"
+            }
+        },
+        "Items List": {
+            "has_more": false,
+            "id": "V%3D%3Cp",
+            "relation": [],
+            "type": "relation"
+        },
+        "Job Applications Tracker": {
+            "has_more": false,
+            "id": "oY%3Dy",
+            "relation": [],
+            "type": "relation"
+        },
+        "Journals": {
+            "has_more": false,
+            "id": "FYjw",
+            "relation": [],
+            "type": "relation"
+        },
+        "Last": {
+            "formula": {
+                "string": "Telemetry Verified",
+                "type": "string"
+            },
+            "id": "L%3DuD",
+            "type": "formula"
+        },
+        "Last edited time": {
+            "id": "%3B%3Cf%3D",
+            "last_edited_time": "2026-04-10T10:15:00.000Z",
+            "type": "last_edited_time"
+        },
+        "Match": {
+            "has_more": false,
+            "id": "lG~~",
+            "relation": [],
+            "type": "relation"
+        },
+        "Mental State": {
+            "id": "%5EOiy",
+            "rollup": {
+                "array": [
+                    {
+                        "rich_text": [
+                            {
+                                "annotations": {
+                                    "bold": true,
+                                    "italic": false,
+                                    "strikethrough": false,
+                                    "underline": false,
+                                    "code": false,
+                                    "color": "purple"
+                                },
+                                "plain_text": "🚀 Engine State: Throttled for Precision",
+                                "text": {
+                                    "content": "🚀 Engine State: Throttled for Precision",
+                                    "link": null
+                                },
+                                "type": "text"
+                            }
+                        ],
+                        "type": "rich_text"
+                    }
+                ],
+                "function": "show_original",
+                "type": "array"
+            },
+            "type": "rollup"
+        },
+        "Nucleus": {
+            "has_more": false,
+            "id": "uXhI",
+            "relation": [],
+            "type": "relation"
+        },
+        "Place": {
+            "id": "ATeG",
+            "place": null,
+            "type": "place"
+        },
+        "Plan": {
+            "button": {},
+            "id": "QGG%40",
+            "type": "button"
+        },
+        "Priority": {
+            "id": "priority_property",
+            "select": {
+                "color": "red",
+                "id": "p-top",
+                "name": "🔥 High-Impact"
+            },
+            "type": "select"
+        },
+        "Progress": {
+            "id": "%40muO",
+            "rich_text": [],
+            "type": "rich_text"
+        },
+        "Status": {
+            "id": "status_id",
+            "status": {
+                "color": "yellow",
+                "id": "stat-pending",
+                "name": "🛰️ In Transit"
+            },
+            "type": "status"
+        },
+        "Super State Table": {
+            "has_more": false,
+            "id": "%60hD%3E",
+            "relation": [],
+            "type": "relation"
+        },
+        "Timeline": {
+            "date": null,
+            "id": "timeline_id",
+            "type": "date"
+        },
+        "Title": {
+            "id": "title",
+            "title": [
+                {
+                    "annotations": {
+                        "bold": true,
+                        "italic": false,
+                        "strikethrough": false,
+                        "underline": false,
+                        "code": false,
+                        "color": "default"
+                    },
+                    "plain_text": "Constellation Mesh Delta-V Adjustment",
+                    "text": {
+                        "content": "Constellation Mesh Delta-V Adjustment",
+                        "link": null
+                    },
+                    "type": "text"
+                }
+            ],
+            "type": "title"
+        },
+        "Track": {
+            "button": {},
+            "id": "D%5Djt",
+            "type": "button"
+        },
+        "Travel Costs": {
+            "has_more": false,
+            "id": "_%5BGx",
+            "relation": [],
+            "type": "relation"
+        },
+        "Type": {
+            "id": "a%7B%7BH",
+            "select": {
+                "color": "pink",
+                "id": "t-ops",
+                "name": "🛸 Operations"
+            },
+            "type": "select"
+        },
+        "URL": {
+            "id": "_%60op",
+            "type": "url",
+            "url": "https://orbital.ops/telemetry/999"
+        },
+        "Urgency": {
+            "id": "Sjn~",
+            "select": {
+                "color": "orange",
+                "id": "u-soon",
+                "name": "⏰ T-Minus 24h"
+            },
+            "type": "select"
+        },
+        "Watershed": {
+            "has_more": false,
+            "id": "I%7CHb",
+            "relation": [],
+            "type": "relation"
+        },
+        "Wish Table": {
+            "has_more": false,
+            "id": "DlVd",
+            "relation": [],
+            "type": "relation"
+        }
+    }
+}

@@ -1,15 +1,45 @@
 from abc import ABC, abstractmethod
 from collections.abc import Coroutine
-from typing import Any, Generic
+from typing import Any, Dict, Generic, List, Optional
 from uuid import UUID
 
 from common_libs.models.client_models import BP, RD, B, PaginationResult
 from common_libs.models.context import ExecutionContext
 
+QueryType = Dict[str, str | int | Dict[str, str | Dict[str, str]]]
+
 
 class RepositoryError(Exception):
     """Base Repository Layer Error."""
 
+    # pylint: disable=too-many-positional-arguments, too-many-arguments
+    def __init__(
+                self,
+                query: Optional[QueryType] = None,
+                message: Optional[str] = None,
+                code: Optional[str] = None,
+                status: Optional[int] = None,
+                error_type: Optional[Any] = None
+    ) -> None:
+        super().__init__()
+        self.message = message
+        self.code = code
+        self.status = status
+        self.error_type = error_type
+        self.query = query
+
+    def __str__(self) -> str:
+        parts: List[str] = []
+        if self.status:
+            parts.append(f"[{self.status}]")
+        if self.code:
+            parts.append(f"({self.code})")
+
+        # Use a default message if none is provided
+        msg = self.message or "An unexpected repository error occurred."
+        parts.append(msg)
+
+        return " ".join(parts)
 
 class RepositoryInterface(Generic[BP, B, RD], ABC):
     @abstractmethod
