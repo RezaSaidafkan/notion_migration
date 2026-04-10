@@ -33,10 +33,11 @@ def tracer[T, R, **P](
     :return: The wrapper async function; a callable.
     :rtype: Callable[Concatenate[Any, BasePage, P], Coroutine[Any, Any, R]]
     """
-    tracing = Tracing()
 
     @wraps(coro)
     async def wrapper(instance: T, *args: P.args, **kwargs: P.kwargs) -> R:
+        # Get the singleton lazily so it's initialized with proper config
+        tracing = Tracing()
         # 1. Extract 'page' and 'execution_context' from args or kwargs
         page = cast(BasePage, kwargs.get("page"))
         execution_context = cast(ExecutionContext, kwargs.get("execution_context"))
@@ -58,11 +59,12 @@ def tracer[T, R, **P](
             )
             return res
         except TracingException as te:
-            logging.exception("Tracing failed: %s", te)
+            logger.exception("Tracing failed: %s", te)
             raise
         except (BaseException, Exception) as e:
             # 4. Error tracing logic (only if we have valid context)
             try:
+
                 tracing.send_trace_page(
                     Body(
                         execution_id=execution_context.execution_id,

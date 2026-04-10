@@ -1,4 +1,3 @@
-import asyncio
 from abc import ABC, abstractmethod
 from collections.abc import Coroutine
 from dataclasses import dataclass
@@ -18,7 +17,7 @@ class ServiceError(Exception):
 
 @dataclass
 class ServiceExecutionContext:
-    task_group: asyncio.TaskGroup
+    # task_group: asyncio.TaskGroup
     execution_context: ExecutionContext
 
 

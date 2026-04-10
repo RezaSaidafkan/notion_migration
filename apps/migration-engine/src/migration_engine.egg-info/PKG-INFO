@@ -1,0 +1,14 @@
+Metadata-Version: 2.4
+Name: migration-engine
+Version: 0.1.0
+Summary: Add your description here
+Author-email: Reza Saidafkan <93768131+rsaidafk@users.noreply.github.com>
+Requires-Python: >=3.14
+Description-Content-Type: text/markdown
+Requires-Dist: aiolimiter>=1.2.1
+Requires-Dist: dataclasses-json>=0.6.7
+Requires-Dist: dotenv>=0.9.9
+Requires-Dist: notion-client>=2.7.0
+Requires-Dist: pydantic>=2.12.5
+Requires-Dist: common-libs
+Requires-Dist: tenacity>=9.1.4

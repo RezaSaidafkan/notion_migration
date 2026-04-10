@@ -110,7 +110,7 @@ class TestServicePage(unittest.IsolatedAsyncioTestCase):
 
         # Act
         result = await self.service.query_database(
-            page=mock_task_page.Id,
+            page=mock_task_page,
             relation=TaskRelationsDefinition.ANCESTORS,
             datasource_info=self.migration_context.source_datasource_info,
             execution_context=self.execution_context)
@@ -133,7 +133,7 @@ class TestServicePage(unittest.IsolatedAsyncioTestCase):
         
         # Act
         result = await self.service.query_database(
-            page=mock_journal_page.Id,
+            page=mock_journal_page,
             relation=JournalRelationsDefinition.ANCESTOR,
             datasource_info=self.migration_context.journal_datasource_info,
             execution_context=self.execution_context)
@@ -286,6 +286,73 @@ class TestServicePage(unittest.IsolatedAsyncioTestCase):
                 # Check recursive calls were initiated
                 self.assertEqual(mock_process_source.call_count, 2)  # root + sub_page
                 mock_process_journal.assert_awaited_once()
+
+    async def test_query_database_with_cursor_expiration_recovery(self):
+        """Test that query_database recovers from cursor expiration by restarting pagination."""
+        from migration_engine.repo.repo_page_interface import RepositoryError
+        
+        # Arrange
+        mock_parent_page = create_mock_page(
+            UUID("62345678-1234-5678-1234-567812345678"),
+            "MockParentPage",
+            TaskPage)
+        
+        mock_page_1 = create_mock_page(
+            UUID("72345678-1234-5678-1234-567812345678"),
+            "MockPage 1",
+            TaskPage)
+        
+        mock_page_2 = create_mock_page(
+            UUID("82345678-1234-5678-1234-567812345678"),
+            "MockPage 2",
+            TaskPage)
+        
+        # Simulate: first page succeeds, cursor error on second attempt, then recovery
+        cursor_error = RepositoryError(
+            message="start_cursor provided is invalid"
+        )
+        
+        # Create side_effect function to control the sequence
+        call_count = [0]
+        
+        async def mock_query_side_effect(**kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                # First call: returns first page with has_more=True
+                return PaginationResult(
+                    results=[mock_page_1], has_more=True, next_cursor="expired_cursor"
+                )
+            elif call_count[0] == 2:
+                # Second call: cursor error
+                raise cursor_error
+            elif call_count[0] == 3:
+                # Third call: restart from beginning with first page
+                return PaginationResult(
+                    results=[mock_page_1], has_more=True, next_cursor="cursor1"
+                )
+            else:
+                # Fourth call: second page
+                return PaginationResult(
+                    results=[mock_page_2], has_more=False, next_cursor=None
+                )
+        
+        self.migration_context.source_datasource_info.repo.query_database = AsyncMock(
+            side_effect=mock_query_side_effect
+        )
+
+        # Act
+        result = await self.service.query_database(
+            mock_parent_page,
+            self.migration_context.task_relation_definition,
+            self.migration_context.source_datasource_info,
+            self.execution_context
+        )
+
+        # Assert
+        # Should have retried after cursor error and recovered
+        self.assertEqual(self.migration_context.source_datasource_info.repo.query_database.await_count, 4)
+        # Result should only contain pages from successful recovery (not the initial failed attempt)
+        self.assertEqual(result, [mock_page_1, mock_page_2])
 
 
 if __name__ == "__main__":

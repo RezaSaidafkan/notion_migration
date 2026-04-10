@@ -1,9 +1,39 @@
+import logging.config
 from typing import Any, Dict, Optional
-from venv import logger
 
 import httpx
 
 from common_libs.models.tracing_models import Body
+
+LOGGING_CONFIG: Dict[Any, Any] = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "default": {
+            "class": "logging.StreamHandler",
+            "formatter": "http",
+            "stream": "ext://sys.stderr"
+        }
+    },
+    "formatters": {
+        "http": {
+            "format": "%(levelname)s [%(asctime)s] %(name)s - %(message)s",
+            "datefmt": "%Y-%m-%d %H:%M:%S",
+        }
+    },
+    'loggers': {
+        'httpx': {
+            'handlers': ['default'],
+            'level': 'WARNING',
+        },
+        'httpcore': {
+            'handlers': ['default'],
+            'level': 'WARNING',
+        },
+    }
+}
+
+logging.config.dictConfig(LOGGING_CONFIG)
 
 
 class TracingException(Exception):
@@ -11,7 +41,6 @@ class TracingException(Exception):
 
 
 class Singleton(type):
-    singleton = None
     instances: Dict[Singleton, Any] = {}
 
     def __call__(cls, *args: Any, **kwds: Any) -> Any:
@@ -31,7 +60,6 @@ class Tracing(metaclass=Singleton):
         try:
             with httpx.Client() as client:
                 response = client.post(f"{self._url}/trace_page", json=body.model_dump(mode="json"))
-                logger.debug(response)
                 response.raise_for_status()
         except httpx.HTTPError as t_e:
             raise TracingException(

@@ -9,6 +9,7 @@ DEFAULT_MAX_RATE = 3
 DEFAULT_NOTION_CLIENT_TIMEOUT_MS = 10
 DEFAULT_SEMAPHORE_LIMIT = 10
 DEFAULT_PAGE_SIZE = 1
+DEFAULT_TRACING_URL = "http://localhost"
 DEFFAULT_TRACING_PORT = 8000
 DEFAULT_TIMEOUT_RETRY = 5
 
@@ -45,7 +46,7 @@ def get_config() -> Config:
             "page_size": int(env_vars.get("PAGE_SIZE") or DEFAULT_PAGE_SIZE),
             "semaphore_limit": int(env_vars.get("SEMAPHORE_LIMIT") or DEFAULT_SEMAPHORE_LIMIT),
             "debug": (env_vars.get("DEBUG") or "False").lower() in ("true", "1"),
-            "tracing_url": env_vars.get("TRACING_URL"),
+            "tracing_url": env_vars.get("TRACING_URL") or DEFAULT_TRACING_URL,
             "tracing_port": int(env_vars.get("TRACING_PORT") or DEFFAULT_TRACING_PORT),
             "notion_client_timeout_ms":
                 float(env_vars.get("NOTION_CLIENT_TIMEOUT_MS") or DEFAULT_NOTION_CLIENT_TIMEOUT_MS),

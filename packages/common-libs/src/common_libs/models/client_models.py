@@ -143,18 +143,15 @@ class JournalRelation(BaseRelation["JournalPage"]):
 class BasePage(BaseModel):
     Id: PageId
 
-# class CommonPage(Generic[K], BaseModel):
-#     Id: K
 class CommonPage(BasePage):
     Properties: Union[TaskProperties, JournalProperties]
-    Icon: Optional[IconEmoji | IconProperty | ExternalEmoji]
+    Icon: Optional[IconProperty | ExternalEmoji | IconEmoji]
 
     def __repr__(self):
         icon = self.Icon.__repr__() if self.Icon else ""
         return f"{icon} {self.Properties}"
 
 
-#class TaskPage(CommonPage[PageId]):
 class TaskPage(CommonPage):
     Relations: Optional[TaskRelation] = None
 
@@ -165,7 +162,6 @@ class TaskPage(CommonPage):
         )
 
 
-#class JournalPage(CommonPage[PageId]):
 class JournalPage(CommonPage):
     Relations: Optional[JournalRelation] = None
 

@@ -1,0 +1,2 @@
+[console_scripts]
+migration-engine = migration_engine.main:main

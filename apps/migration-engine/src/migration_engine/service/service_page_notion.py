@@ -1,8 +1,7 @@
 import asyncio
 import logging
-from asyncio import Task
 from collections.abc import Coroutine
-from typing import Any, List, Sequence
+from typing import Any, Awaitable, List, Sequence
 
 from common_libs.constants.literal_definitions import (
     JournalRelationsDefinition,
@@ -80,7 +79,7 @@ class ServicePage(
             raise ServiceError(
                 f"Failed to read page_id: {page}") from re
 
-    # pylint: disable=invalid-overridden-method
+    # pylint: disable=invalid-overridden-method, too-many-locals
     @tracer
     async def query_database(
         self,
@@ -92,9 +91,13 @@ class ServicePage(
         exhausted = False
         cursor = None
         pages: List[B] = []
+        max_cursor_retries = 3
+        cursor_retry_count = 0
 
         while not exhausted:
             try:
+                if execution_context.debug:
+                    logger.debug("Querying page '%s'", str(page.Id))
                 pagination = await datasource_info.repo.query_database(
                     page=page,
                     execution_context=execution_context,
@@ -105,20 +108,41 @@ class ServicePage(
                 pages.extend(pagination.results)
                 cursor = pagination.next_cursor
                 exhausted = not pagination.has_more
+                cursor_retry_count = 0  # Reset retry count on success
                 if execution_context.debug:
                     if exhausted:
-                        logger.debug("Paginated results is exhausted")
+                        logger.debug(
+                            "Paginated results is exhausted '%s'", str(page.Id))
                     else:
-                        logger.debug("Paginating result to cursor: %s", cursor)
-            # pylint: disable=raise-missing-from
+                        logger.debug(
+                            "Paginating result to cursor: '%s' '%s'", cursor, str(page.Id))
             except RepositoryError as re:
-                cursor_msg = f" at cursor: {cursor}" if cursor else ""
-                raise ServiceError(
-                    f"Failed to query database:\t\
-                    {datasource_info},\t\
-                    cursor:\t{cursor_msg},\t\
-                    page:\t{page.Id}",
-                    ) from re
+                # Check if this is a cursor-related error
+                error_msg = str(re).lower()
+                is_cursor_error = "cursor" in error_msg and "start_cursor" in error_msg
+
+                if is_cursor_error and cursor_retry_count < max_cursor_retries:
+                    # Cursor has expired, restart from the beginning
+                    cursor_retry_count += 1
+                    logger.warning(
+                        "Cursor expired, restarting pagination from beginning (attempt %d/%d)",
+                        cursor_retry_count, max_cursor_retries
+                    )
+                    cursor = None
+                    # Don't include previous partial results - restart completely
+                    pages = []
+                    continue
+
+                error_msg_detail = \
+                    f"Failed to query database: '{datasource_info}', \
+                      page: '{page.Id}',\
+                      {str(re.args)}"
+
+                if cursor:
+                    cursor_msg = f" at cursor: '{cursor}'"
+                    error_msg_detail = error_msg_detail + cursor_msg
+
+                raise ServiceError(error_msg_detail).with_traceback(re.__traceback__) from re
         return pages
 
     # pylint: disable=invalid-overridden-method
@@ -141,35 +165,23 @@ class ServicePage(
         """
         collected: List[TaskPage] = []
 
-        try:
-            async with asyncio.TaskGroup() as tg:
-                self._service_execution_context = ServiceExecutionContext(
-                    task_group=tg,
-                    execution_context=execution_context)
+        self._service_execution_context = ServiceExecutionContext(
+            execution_context=execution_context)
 
-                tg.create_task(
-                        self.process_source_recursive(
-                            page,
-                            level,
-                            collected,
-                            migration_context,
-                            execution_context
-                        )
+        _ = await asyncio.gather(
+                self.process_source_recursive(
+                    page,
+                    level,
+                    collected,
+                    migration_context,
+                    execution_context
                     )
-        # pylint: disable=raise-missing-from
-        except* ServiceError as re:
-            raise ServiceError(
-                f"Failed to get the hierarchy for \
-                    {page.Properties.Title}") from re
-        except* Exception as e:
-            raise ServiceError(
-                f"An unknown Exception raised creating \
-                    hierarchy for: {page.Properties.Title}") from e
+                )
         return collected
 
     # pylint: disable=invalid-overridden-method
     # pylint: disable=too-many-positional-arguments, too-many-arguments
-    def create_task_sub_pages(
+    def get_task_sub_pages(
         self,
         page: CommonPage,
         datasource_info: DatasourceInfo[BasePage, B, RelationDefinitions],
@@ -180,6 +192,8 @@ class ServicePage(
         Note: Exceptions raised by the task will be collected by the TaskGroup
         and re-raised as ExceptionGroup when the TaskGroup exits.
         """
+        if execution_context.debug:
+            logger.debug("Processing sub page '%s'", str(page.Id.Id))
         try:
             return self.query_database(
                 page=BasePage(Id=page.Id),
@@ -205,67 +219,57 @@ class ServicePage(
         execution_context: ExecutionContext,
     ):
         try:
-            # create the coroutines and run them concurrently with timing & rate limited
-            task_subpages_tasks: Task[Sequence[TaskPage]] = (
-                self._service_execution_context.task_group
-                .create_task(
-                    self.create_task_sub_pages(
+            task_subpages_tasks: Awaitable[Sequence[TaskPage]] = self.get_task_sub_pages(
                         page=page,
                         datasource_info=migration_context.source_datasource_info,
                         relation=TaskRelationsDefinition.ANCESTORS,
                         execution_context=execution_context
                         )
-                    )
-            )
 
-            journal_pages_tasks: Task[Sequence[JournalPage]] = (
-                self._service_execution_context.task_group\
-                .create_task(
-                    self.create_task_sub_pages(
+            journal_pages_tasks: Awaitable[Sequence[JournalPage]] = self.get_task_sub_pages(
                         page=page,
                         datasource_info=migration_context.journal_datasource_info,
                         relation=migration_context.junction_relation_definition,
                         execution_context=execution_context
                         )
-                    )
-            )
 
-            task_subpages, journal_pages = await asyncio.gather(
-                task_subpages_tasks, journal_pages_tasks
+            results_subpages, results_journal_pages = await asyncio.gather(
+                task_subpages_tasks, journal_pages_tasks, return_exceptions=True
             )
 
             page.Relations = TaskRelation(Descendants=None, Ancestors=None, Journals=None)
 
-            if journal_pages != []:
-                page.Relations.Journals = journal_pages
-                for journal_page in journal_pages:
-                    self._service_execution_context.task_group.create_task(
-                        self.process_journal_recursive(
-                            journal_page,
-                            migration_context,
-                            execution_context
-                        ),
-                    )
+            if not isinstance(results_journal_pages, BaseException) and results_journal_pages != []:
+                if execution_context.debug:
+                    logger.debug("Processing Journals")
+                page.Relations.Journals = results_journal_pages
+                _ = await asyncio.gather(
+                    *[self.process_journal_recursive(
+                        journ_page,
+                        migration_context,
+                        execution_context)
+                    for journ_page in results_journal_pages],
+                    return_exceptions=True)
 
-            if task_subpages != []:
-                page.Relations.Descendants = task_subpages
-                for sub_page in task_subpages:
-                    self._service_execution_context.task_group.create_task(
-                        self.process_source_recursive(
-                            sub_page,
-                            level + 1,
-                            collected,
-                            migration_context,
-                            execution_context
-                        ),
-                    )
+            if not isinstance(results_subpages, BaseException) and results_subpages != []:
+                if execution_context.debug:
+                    logger.debug("Processing Subpages")
+                page.Relations.Descendants = results_subpages
+                _ = await asyncio.gather(
+                    *[self.process_source_recursive(
+                        sub_page,
+                        level + 1,
+                        collected,
+                        migration_context,
+                        execution_context)
+                    for sub_page in results_subpages],
+                    return_exceptions=True)
 
             if level == 1 and self._service_execution_context.execution_context.debug:
-                logger.info("The page hierarchy:\n%s", page)
+                logger.debug("The page hierarchy created")
                 collected.append(page)
-        except (RepositoryError, ServiceError) as e:
-            raise ServiceError(
-                f"Failed to recurse for page: {page.Properties.Title}") from e
+        except (RepositoryError, ServiceError):
+            logger.exception("Failed to recurse for page: %s", page.Properties.Title)
 
     async def process_journal_recursive(
         self,
@@ -281,7 +285,7 @@ class ServicePage(
         Assigns the found sub-journal pages to the Relations.Descendants / Relations.Ancestors
         attributes of the page.
         """
-        sub_journal_pages: Sequence[JournalPage] = await self.create_task_sub_pages(
+        sub_journal_pages: Sequence[JournalPage] = await self.get_task_sub_pages(
             page=page,
             datasource_info=migration_context.journal_datasource_info,
             relation=JournalRelationsDefinition.ANCESTOR,
@@ -294,13 +298,14 @@ class ServicePage(
                 Descendants=sub_journal_pages,
                 Ancestors=[page],
             )
-            for journ_page in sub_journal_pages:
-                self._service_execution_context.task_group.create_task(
-                    self.process_journal_recursive(
-                        journ_page,
-                        migration_context,
-                        execution_context),
-                    )
+
+            _ = await asyncio.gather(
+                *[self.process_journal_recursive(
+                    journ_page,
+                    migration_context,
+                    execution_context)
+                  for journ_page in sub_journal_pages],
+                return_exceptions=True)
 
     async def create_or_update_page(
         self,

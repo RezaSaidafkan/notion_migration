@@ -1,10 +1,7 @@
 import logging
 from asyncio import Queue, QueueShutDown
 from contextlib import asynccontextmanager
-from datetime import datetime
-from typing import AsyncGenerator, List, Optional, Sequence
-from uuid import UUID
-from xmlrpc.client import Boolean
+from typing import AsyncGenerator, List, Sequence
 
 from common_libs.models.tracing_models import Body
 from fastapi import HTTPException, status
@@ -14,9 +11,10 @@ from sqlalchemy.exc import (
     NoResultFound,
     OperationalError,
 )
-from sqlmodel import Session, SQLModel, create_engine, select
+from sqlmodel import Session, SQLModel, col, create_engine, select
 
 from tracing.db.models.table import TraceLog
+from tracing.models.trace_filters import TraceFilters
 
 logger = logging.getLogger()
 
@@ -49,25 +47,31 @@ def setup_database(db_uri: str) -> Engine:
 
 def get_results_from_db(
     session: Session,
-    execution_id: Optional[UUID] = None,
-    cutoff_date: Optional[datetime] = None,
-    page_id: Optional[UUID] = None,
-    failed_only: Optional[Boolean] = None) -> Sequence[TraceLog]:
+    filters: TraceFilters,
+) -> Sequence[TraceLog]:
     statement = select(TraceLog)
-    if failed_only:
+    if filters.failed_only:
         # pylint: disable=singleton-comparison
         statement = statement.where(
             TraceLog.success == False)  # noqa: E712
-    if execution_id:
+    if filters.execution_id:
         statement = statement.where(
-            TraceLog.execution_id == execution_id)
-    if cutoff_date:
+            TraceLog.execution_id == filters.execution_id)
+    if filters.cutoff_date:
         statement = statement.where(
-            TraceLog.timestamp >= cutoff_date
+            TraceLog.timestamp >= filters.cutoff_date
         )
-    if page_id:
+    if filters.page_id:
         statement = statement.where(
-            TraceLog.page_id==page_id)
+            TraceLog.page_id == filters.page_id)
+    if filters.filtered_error_message:
+        statement = statement.where(
+            col(TraceLog.outcome_exception_traceback).contains(filters.filtered_error_message)
+        )
+    if filters.function_name:
+        statement = statement.where(
+            col(TraceLog.function_name).contains(filters.function_name)
+        )
 
     try:
         return session.exec(statement).all()

@@ -85,6 +85,5 @@ class TestTracing(unittest.IsolatedAsyncioTestCase):
     def tearDown(self):
         pass
 
-
 if __name__ == "__main__":
     unittest.main()

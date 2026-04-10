@@ -20,9 +20,10 @@ from tracing.db.crud import (
     setup_database,
     write_to_db,
 )
+from tracing.models.trace_filters import TraceFilters
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.WARNING)
 
 write_batch_to_db = partial(write_to_db, batch_size=TRACING_CONFIG.tracing_batch_size)
 
@@ -56,25 +57,34 @@ async def trace_page(body: Body, request: Request, background_tasks: BackgroundT
         session=get_session(request))
     return Response(status_code=status.HTTP_202_ACCEPTED)
 
+# pylint: disable=too-many-positional-arguments, too-many-arguments
 @app.get("/get_results")
-def get_results(
+def get_results( # noqa: PLR0913
     request: Request,
     execution_id: Optional[UUID] = None,
     failed_only: Optional[Boolean] = False,
     page_id: Optional[UUID] = None,
-    cutoff_date: Optional[datetime] = None) -> Response:
+    cutoff_date: Optional[datetime] = None,
+    filtered_error_message: Optional[str] = None,
+    function_name: Optional[str] = None) -> Response:
     bodies = get_results_from_db(
         get_session(request),
-        execution_id,
-        cutoff_date,
-        page_id,
-        failed_only)
+        TraceFilters(
+            execution_id=execution_id,
+            cutoff_date=cutoff_date,
+            page_id=page_id,
+            failed_only=failed_only,
+            filtered_error_message=filtered_error_message,
+            function_name=function_name)
+        )
     return Response(
         status_code=status.HTTP_202_ACCEPTED,
         content="\n".join(
             [b.model_dump_json(
                 exclude={"outcome_exception_traceback", "id"})
-             for b in bodies]))
+             for b in bodies]
+            )
+        )
 
 @app.get("/get_queue_state")
 def get_queue_state(request: Request) -> Response:

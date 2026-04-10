@@ -20,6 +20,7 @@ from tracing.db.crud import (
     write_to_db,
 )
 from tracing.db.models.table import TraceLog
+from tracing.models.trace_filters import TraceFilters
 
 
 class TestCrud(unittest.TestCase):
@@ -47,7 +48,10 @@ class TestCrud(unittest.TestCase):
             )
             session.add(trace_log)
             session.commit()
-            results = get_results_from_db(session)
+            
+            tracing_filters = TraceFilters()
+            
+            results = get_results_from_db(session, tracing_filters)
             self.assertEqual(len(results), 1)
 
     def test_get_by_page_id_from_db(self):
@@ -61,7 +65,10 @@ class TestCrud(unittest.TestCase):
             )
             session.add(trace_log)
             session.commit()
-            results = get_results_from_db(session, page_id=self.page_id)
+            
+            tracing_filters = TraceFilters(page_id=self.page_id)
+            
+            results = get_results_from_db(session, tracing_filters)
             self.assertEqual(len(results), 1)
             self.assertEqual(results[0].page_id, self.page_id)
 
@@ -76,11 +83,13 @@ class TestCrud(unittest.TestCase):
             )
             session.add(trace_log)
             session.commit()
-            results = get_results_from_db(
-                session, 
+            
+            tracing_filters = TraceFilters(
                 execution_id=self.execution_id,
                 failed_only=False
             )
+            
+            results = get_results_from_db(session, tracing_filters)
             self.assertEqual(len(results), 1)
             self.assertEqual(results[0].execution_id, self.execution_id)
 
@@ -95,10 +104,33 @@ class TestCrud(unittest.TestCase):
             )
             session.add(trace_log)
             session.commit()
-            results = get_results_from_db(session,
-                                          failed_only=True)
+            
+            tracing_filters = TraceFilters(
+                failed_only=True
+            )
+            results = get_results_from_db(session, tracing_filters)
             self.assertEqual(len(results), 1)
             self.assertFalse(results[0].success)
+    
+    def test_get_row_by_error_message(self):
+        with Session(self.engine) as session:
+            trace_log = TraceLog(
+                execution_id=self.execution_id,
+                page_id=self.page_id,
+                success=False,
+                function_name="test",
+                timestamp=datetime.now(),
+                outcome_exception_traceback="Some Error Message"
+            )
+            session.add(trace_log)
+            session.commit()
+            
+            tracing_filters = TraceFilters(
+                filtered_error_message="Some Error Message")
+
+            results = get_results_from_db(session, tracing_filters)
+            self.assertEqual(len(results), 1)
+            self.assertEqual(results[0].success, False)
 
     def test_async_create_session(self):
         async def run_test():
@@ -116,8 +148,10 @@ class TestCrud(unittest.TestCase):
 
     def test_async_write_to_db(self):
         async def run_test():
+            execution_id = uuid4()
+            page_id = uuid4()
             queue: asyncio.Queue[Body] = asyncio.Queue()
-            page = TracePage(id=uuid4())
+            page = TracePage(id=page_id)
             outcome = Outcome(
                 success=True,
                 failure=None,
@@ -128,15 +162,19 @@ class TestCrud(unittest.TestCase):
                 outcome=outcome,
             )
             body = Body(
-                execution_id=uuid4(),
+                execution_id=execution_id,
                 page=page,
                 trace=trace,
             )
             await queue.put(body)
+            
+            tracing_filters = TraceFilters(
+                execution_id=execution_id,
+                page_id=page_id)
 
             with Session(self.engine) as session:
                 await write_to_db(session, queue, 1)
-                results = get_results_from_db(session)
+                results = get_results_from_db(session, tracing_filters)
                 self.assertEqual(len(results), 1)
 
         asyncio.run(run_test())
