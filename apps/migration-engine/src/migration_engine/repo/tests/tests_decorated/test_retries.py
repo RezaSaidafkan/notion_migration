@@ -1,5 +1,7 @@
+import importlib
 import json
 import os
+import sys
 import unittest
 from functools import reduce
 from pathlib import Path
@@ -14,6 +16,8 @@ tests_dir_path = Path().cwd().joinpath(
     "apps/migration-engine/src/migration_engine/repo/tests/tests_decorated/")
 response_root_file_path = tests_dir_path.joinpath("response_root.json")
 
+MOCKED_RETRY_TIMEOUT_FALLBACK = 0.01
+MOCKED_ATTEMPT_TRIAL_NUMBER = 3
 
 config = {
     "notion_api_key": "some key",
@@ -63,7 +67,7 @@ class TestRetries(unittest.IsolatedAsyncioTestCase):
                 APIResponseError(
                 code=APIErrorCode.RateLimited,
                 message=f"msg {i} APIResponseError",
-                response=mocked_response) for i in range(6)
+                response=mocked_response) for i in range(1, 7)
                 ]
 
         mocked_async_client_instance = mocked_async_client.return_value
@@ -78,9 +82,10 @@ class TestRetries(unittest.IsolatedAsyncioTestCase):
             name="mocked_retrieve",
             return_value = response_root)
 
-        with patch("common_libs.utils.tracing.Tracing") as mocked_tracing,\
-            patch("migration_engine.repo.repo_page_notion.RETRY_TIMEOUT_FALLBACK", 0.01),\
-            patch("common_libs.singletons.rate_limiter_singleton.AsyncLimiter"):
+        with patch("migration_engine.repo.repo_page_notion.RETRY_TIMEOUT_FALLBACK", MOCKED_RETRY_TIMEOUT_FALLBACK),\
+            patch("migration_engine.repo.repo_page_notion.ATTEMPT_TRIAL_NUMBER", MOCKED_ATTEMPT_TRIAL_NUMBER),\
+            patch("common_libs.singletons.rate_limiter_singleton.AsyncLimiter"),\
+            patch("common_libs.utils.tracing.Tracing") as mocked_tracing:
             from migration_engine.main import execute_migration_engine
 
             tracing_instance = mocked_tracing.return_value
@@ -98,7 +103,7 @@ class TestRetries(unittest.IsolatedAsyncioTestCase):
             api_response_error_exceptions = [
                 d.get("exception_value") for d in results
                 if d is not None and d.get("exception_type", "") == "APIResponseError"]
-            assert set(api_response_error_exceptions) == set(f"msg {i} APIResponseError" for i in range(3))
+            assert set(api_response_error_exceptions) == set(f"msg {i} APIResponseError" for i in range(1, 7))
 
     @patch.dict(os.environ, env_vars_for_test)
     @patch("migration_engine.repo.repo_page_notion.Client")
@@ -108,7 +113,7 @@ class TestRetries(unittest.IsolatedAsyncioTestCase):
         ## mocking erroneous responses
         errors_list = [
                 RequestTimeoutError(
-                message=f"msg {i} RequestTimeoutError") for i in range(6)
+                message=f"msg {i} RequestTimeoutError") for i in range(1, 7)
                 ]
 
         mocked_async_client_instance = mocked_async_client.return_value
@@ -124,9 +129,10 @@ class TestRetries(unittest.IsolatedAsyncioTestCase):
             name="mocked_retrieve",
             return_value = response_root)
 
-        with patch("common_libs.utils.tracing.Tracing") as mocked_tracing,\
-            patch("migration_engine.repo.repo_page_notion.RETRY_TIMEOUT_FALLBACK", 0.01),\
-            patch("common_libs.singletons.rate_limiter_singleton.AsyncLimiter"):
+        with patch("migration_engine.repo.repo_page_notion.RETRY_TIMEOUT_FALLBACK", MOCKED_RETRY_TIMEOUT_FALLBACK),\
+            patch("migration_engine.repo.repo_page_notion.ATTEMPT_TRIAL_NUMBER", MOCKED_ATTEMPT_TRIAL_NUMBER),\
+            patch("common_libs.singletons.rate_limiter_singleton.AsyncLimiter"),\
+            patch("common_libs.utils.tracing.Tracing") as mocked_tracing:
             from migration_engine.main import execute_migration_engine
 
             tracing_instance = mocked_tracing.return_value
@@ -141,7 +147,7 @@ class TestRetries(unittest.IsolatedAsyncioTestCase):
             api_response_error_exceptions = [
                 d.get("exception_value") for d in results
                 if d is not None and d.get("exception_type", "") == "RequestTimeoutError"]
-            assert set(api_response_error_exceptions) == set(f"msg {i} RequestTimeoutError" for i in range(3))
+            assert set(api_response_error_exceptions) == set(f"msg {i} RequestTimeoutError" for i in range(1, 7))
 
 
     @patch.dict(os.environ, env_vars_for_test)
@@ -160,10 +166,10 @@ class TestRetries(unittest.IsolatedAsyncioTestCase):
                 APIResponseError(
                     code=APIErrorCode.RateLimited,
                     message=f"msg {i} APIResponseError",
-                    response=mocked_response) for i in range(3)
+                    response=mocked_response) for i in range(1, 4)
                 ] + [
                 RequestTimeoutError(
-                    message=f"msg {i} RequestTimeoutError") for i in range(4)
+                    message=f"msg {i} RequestTimeoutError") for i in range(1, 4)
                 ]
 
         mocked_async_client_instance = mocked_async_client.return_value
@@ -181,10 +187,11 @@ class TestRetries(unittest.IsolatedAsyncioTestCase):
             name="mocked_retrieve",
             return_value = response_root)
 
-        with patch("common_libs.utils.tracing.Tracing") as mocked_tracing,\
+        with patch("migration_engine.repo.repo_page_notion.RETRY_TIMEOUT_FALLBACK", MOCKED_RETRY_TIMEOUT_FALLBACK),\
+            patch("migration_engine.repo.repo_page_notion.ATTEMPT_TRIAL_NUMBER", MOCKED_ATTEMPT_TRIAL_NUMBER),\
             patch("common_libs.singletons.rate_limiter_singleton.AsyncLimiter"),\
-            patch("migration_engine.repo.repo_page_notion.RETRY_TIMEOUT_FALLBACK", 0.01):
-            from migration_engine.main import MigrationEngineError, execute_migration_engine
+            patch("common_libs.utils.tracing.Tracing") as mocked_tracing:
+            from migration_engine.main import execute_migration_engine
                 
             tracing_instance = mocked_tracing.return_value
 
@@ -199,7 +206,7 @@ class TestRetries(unittest.IsolatedAsyncioTestCase):
             both_exceptions = [
                 d.get("exception_value") for d in results
                 if d is not None and d.get("exception_type", "") in ["RequestTimeoutError", "APIResponseError"]]
-            assert set(both_exceptions) == set(f"msg {i} RequestTimeoutError" for i in range(3)).union(set(f"msg {i} APIResponseError" for i in range(3)))
+            assert set(both_exceptions) == set(f"msg {i} RequestTimeoutError" for i in range(1, 4)).union(set(f"msg {i} APIResponseError" for i in range(1, 4)))
 
 
 if __name__ == "__main__":

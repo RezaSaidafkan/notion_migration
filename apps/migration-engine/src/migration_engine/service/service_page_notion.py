@@ -97,14 +97,13 @@ class ServicePage(
         while not exhausted:
             try:
                 if execution_context.debug:
-                    logger.debug("Querying page '%s'", str(page.Id))
+                    logger.debug("Querying page '%s'", str(page.Id.Id))
                 pagination = await datasource_info.repo.query_database(
                     page=page,
                     execution_context=execution_context,
                     data_source_id=datasource_info.datasource_id,
                     relation=relation,
-                    cursor=cursor
-                )
+                    cursor=cursor)
                 pages.extend(pagination.results)
                 cursor = pagination.next_cursor
                 exhausted = not pagination.has_more
@@ -112,10 +111,10 @@ class ServicePage(
                 if execution_context.debug:
                     if exhausted:
                         logger.debug(
-                            "Paginated results is exhausted '%s'", str(page.Id))
+                            "Paginated results is exhausted '%s'", str(page.Id.Id))
                     else:
                         logger.debug(
-                            "Paginating result to cursor: '%s' '%s'", cursor, str(page.Id))
+                            "Paginating result to cursor: '%s' '%s'", cursor, str(page.Id.Id))
             except RepositoryError as re:
                 # Check if this is a cursor-related error
                 error_msg = str(re).lower()

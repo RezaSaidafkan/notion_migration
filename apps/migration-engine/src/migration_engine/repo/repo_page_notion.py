@@ -1,9 +1,10 @@
 import logging
 from abc import abstractmethod
-from asyncio import Condition, Event
+from asyncio import Event
 from dataclasses import dataclass
+from functools import wraps
 from logging import Logger
-from typing import Any, Generic, List, Optional
+from typing import Any, Callable, Concatenate, Coroutine, Generic, List, Optional, cast
 from uuid import UUID
 
 from common_libs.constants.literal_definitions import RelationDefinitions
@@ -32,11 +33,13 @@ from notion_client.errors import (
 from pydantic import ValidationError
 from tenacity import (
     RetryCallState,
+    before_sleep_log,
     retry,
     retry_if_exception_type,
     retry_if_not_exception_type,
-    stop_after_attempt,
+    wait_exponential,
 )
+from tenacity.stop import stop_base
 from tenacity.wait import wait_base
 
 from migration_engine.repo.notion_object_mapping.notion_object_map import translate
@@ -49,42 +52,143 @@ from migration_engine.repo.repo_page_interface import (
 logger = logging.getLogger(__name__)
 logger_client: Logger = logger.getChild("client")
 
-ATTEMPT_TRIAL_NUMBER = 3
-RETRY_TIMEOUT_FALLBACK = 3
+ATTEMPT_TRIAL_NUMBER = 5
+RETRY_TIMEOUT_FALLBACK = 1  # in seconds
 
 EVENT = Event()
 EVENT.set()
-API_LOCK = Condition()
 ACTIVE_CALL_ID: Optional[UUID] = None  # Tracking which call is allowed through the gate
 
+def error_handling[T, R, **P](
+    coro: Callable[Concatenate[T, P], Coroutine[Any, Any, R]]
+) -> Callable[Concatenate[T, P], Coroutine[Any, Any, R]]:
+    @wraps(coro)
+    async def wrapper(instance: T, *args: P.args, **kwargs: P.kwargs) -> R:
+        try:
+            result = await coro(instance, *args, **kwargs)
+            return result
+        except KeyError as ke:
+            raise RepositoryError(
+                message = "Failed to parse API response to internal model",
+                error_type = type(ke)
+                ) from None
+        except ConnectError as c_e:
+            raise RepositoryError(
+                error_type=type(c_e)
+                ) from None
+        except RequestTimeoutError as rto_e:
+            logger.exception(rto_e)
+            raise RepositoryError(
+                code = rto_e.code,
+                error_type = type(rto_e)
+                ) from None
+        except APIResponseError as api_e:
+            logger.exception(api_e)
+            raise RepositoryError(
+                code= api_e.code,
+                status= api_e.status,
+                error_type= type(api_e)
+                ) from None
+        except HTTPResponseError as hr_e:
+            raise RepositoryError(
+                code=hr_e.code,
+                status=hr_e.status,
+                error_type=type(hr_e)
+                ) from None
+        except ValidationError as validation_e:
+            raise RepositoryError(
+                message=validation_e.json(),
+                error_type=type(validation_e)
+                ) from None
+        except Exception as e:
+            raise RepositoryError(
+                error_type=type(e),
+                message=str(e)
+                ) from None
+    return wrapper
 
 # pylint: disable=invalid-name, too-few-public-methods
 class wait_error_callback(wait_base):
-    def __init__(self, retry_timeout_fallback: float) -> None:
-        self._retry_timeout_fallback = retry_timeout_fallback
+    def __init__(self) -> None:
+        pass
 
     def __call__(self, retry_state: RetryCallState) -> float:
+        page = cast(BasePage, retry_state.kwargs.get("page"))
+
+        # setting the Active Call ID to be used by `synchronization_gating`
+        global ACTIVE_CALL_ID  # noqa: PLW0603, pylint: disable=global-statement
+        ACTIVE_CALL_ID = page.Id.Id
+
+        EVENT.clear()
+        logger.debug("%s: '%s', '%s'", repr(retry_state), page.Id.Id, EVENT)
         if retry_state.outcome:
             exception = retry_state.outcome.exception()
             if isinstance(exception, APIResponseError) and \
                 exception.code == APIErrorCode.RateLimited:
-                retry_timeout = exception.headers.get("Retry-After")
-                logger.debug("Retring after '%d' seconds", float(retry_timeout))
-                return float(retry_timeout)
-        return self._retry_timeout_fallback
+                if "Retry-After" in exception.headers:
+                    retry_timeout = exception.headers.get("Retry-After")
+                    return float(retry_timeout)
+                wait_exponential_instance = wait_exponential(multiplier=1, min=10, max=90)
+                retry_timeout = wait_exponential_instance(retry_state)
+                return retry_timeout
+        return RETRY_TIMEOUT_FALLBACK
 
-def handle_outcome(retry_state: RetryCallState):
-    if retry_state.outcome:
-        if retry_state.outcome.failed:
-            EVENT.clear()
-        else:
-            EVENT.set()
+
+class stop_after_attempt_dynamic(stop_base):
+    def __init__(self) -> None:
+        pass
+
+    def __call__(self, retry_state: RetryCallState) -> bool:
+        return retry_state.attempt_number >= ATTEMPT_TRIAL_NUMBER
 
 # pylint: disable=unused-argument
 def set_on_exhausted(retry_state: RetryCallState):
     EVENT.set()
-    logger.debug("Retry loop exhausted, set EVENT to '%s'", repr(EVENT))
+    global ACTIVE_CALL_ID  # noqa: PLW0603, pylint: disable=global-statement
+    ACTIVE_CALL_ID = None
+    logger.debug("Retry loop exhausted, EVENT is 'Set'")
 
+def synchronization_gating[T, R, **P](
+    coro: Callable[Concatenate[T, P], Coroutine[Any, Any, R]]
+) -> Callable[Concatenate[T, P], Coroutine[Any, Any, R]]:
+    @wraps(coro)
+    async def wrapper(instance: T, *args: P.args, **kwargs: P.kwargs) -> R:
+        page = cast(BasePage, kwargs.get("page"))
+        execution_context = cast(ExecutionContext, kwargs.get("execution_context"))
+
+        call_id = page.Id.Id
+
+        global ACTIVE_CALL_ID  # noqa: PLW0603, pylint: disable=global-statement
+        if execution_context.debug:
+            logger.debug("ACTIVE_CALL_ID: '%s', EVENT: '%s'", ACTIVE_CALL_ID, EVENT)
+        while not EVENT.is_set() and ACTIVE_CALL_ID != call_id:
+            if execution_context.debug:
+                logger.debug("Stalled processing PageId '%s': \
+Another call is active, wait for it to finish", call_id)
+            await EVENT.wait()
+            continue
+
+        if EVENT.is_set() and execution_context.debug:
+            logger.debug(
+                "Executing the API call: '%s', Event is 'Set': '%s'", page.Id.Id, EVENT.is_set())
+        elif not EVENT.is_set() and ACTIVE_CALL_ID != page.Id.Id:
+            if execution_context.debug:
+                logger.debug(
+                    "Waiting to executing the API call: '%s', Event is 'Set': '%s'",
+                    page.Id.Id, EVENT.is_set())
+            await EVENT.wait()
+
+        response: Any = None
+        response = await coro(instance, *args, **kwargs)
+
+        if ACTIVE_CALL_ID == page.Id.Id:
+            EVENT.set()
+            ACTIVE_CALL_ID = None
+            if execution_context.debug:
+                logger.debug("Queried successfully, EVENT is 'Set': '%s'", page.Id.Id)
+        logger.debug("Successfully executed the API call: '%s'", page.Id.Id)
+        return response
+    return wrapper
 
 # pylint: disable=too-few-public-methods
 class ClientSingleton:
@@ -129,7 +233,10 @@ class NotionRepository(
     def convert_client_page(self, result: ApiPage) -> B:
         pass
 
+    # pylint: disable=too-many-positional-arguments, too-many-arguments, too-many-locals
     # pylint: disable=unused-argument, global-statement
+    @error_handling
+    @rate_limited
     @retry(
         reraise=True,
         retry=retry_if_not_exception_type(
@@ -140,50 +247,14 @@ class NotionRepository(
         reraise=True,
         retry=retry_if_exception_type(
             (RequestTimeoutError, HTTPResponseError, APIResponseError)),
-        wait=wait_error_callback(RETRY_TIMEOUT_FALLBACK),
-        after=handle_outcome,
+        wait=wait_error_callback(),
+        before_sleep=before_sleep_log(logger, logging.DEBUG),
         retry_error_callback=set_on_exhausted,
-        stop=stop_after_attempt(ATTEMPT_TRIAL_NUMBER),
+        stop=stop_after_attempt_dynamic(),
         )
-    @rate_limited
     @tracer
-    async def _query_notion(
-        self,
-        page: BasePage,
-        execution_context: ExecutionContext,
-        data_source_id: UUID,
-        query: QueryType
-    ) -> Any:
-        global ACTIVE_CALL_ID  # noqa: PLW0603
-        call_id = page.Id.Id
-
-        async with API_LOCK:
-            # If rate-limited, wait until this call becomes active
-            while not EVENT.is_set() and ACTIVE_CALL_ID != call_id:
-                if ACTIVE_CALL_ID is None:
-                    ACTIVE_CALL_ID = call_id
-                else:
-                    # Another call is active, wait for it to finish
-                    logger.debug("Stalled processing PageId '%s':\
-                                  Another call is active, wait for it to finish", call_id)
-                    await API_LOCK.wait()
-                    continue
-
-            try:
-                # Now this call has the gate
-                response: Any = None
-                response = await self.notion.data_sources.query(str(data_source_id), **query)
-                EVENT.set()
-                return response
-            finally:
-                # Always clear active call and notify waiters, even on exception
-                if ACTIVE_CALL_ID == call_id:
-                    ACTIVE_CALL_ID = None
-                    API_LOCK.notify_all()
-
-    # pylint: disable=too-many-positional-arguments, too-many-arguments, too-many-locals
-    @tracer
-    async def query_database(
+    @synchronization_gating
+    async def _query_database(
         self,
         page: BasePage,
         execution_context: ExecutionContext,
@@ -195,77 +266,43 @@ class NotionRepository(
         query: QueryType = {}
         response: Any = None
 
-        try:
-            filter_query = translate(relation=relation, page=page)
+        filter_query = translate(relation=relation, page=page)
 
-            query["filter"] = filter_query if filter_query else {}
-            query["page_size"] = execution_context.page_size
-            if cursor:
-                query["start_cursor"] = cursor
+        query["filter"] = filter_query if filter_query else {}
+        query["page_size"] = execution_context.page_size
+        if cursor:
+            query["start_cursor"] = cursor
 
-            # Gate new queries at the rate-limit event. Retry attempts inside _query_notion
-            # are allowed to proceed - they are synchronized via API_LOCK.
-            await EVENT.wait()
+        response = await self.notion.data_sources.query(str(data_source_id), **query)
 
-            response = await self._query_notion(page=page,
-                                                execution_context=execution_context,
-                                                data_source_id=data_source_id,
-                                                query=query)
+        results = [ApiPage(**result) for result in response["results"]]
+        converted_results: List[B] = [
+            self.convert_client_page(apiPage) for apiPage in results
+        ]
 
-            if execution_context.debug:
-                logger.debug(
-                    "Successfully queried to Notion client with query '%s'",
-                    query)
+        result = PaginationResult[B](
+            results=converted_results,
+            has_more=response["has_more"],
+            next_cursor=response.get("next_cursor"),
+        )
+        logger.debug("Result for '%s': '%s' hits.", page.Id.Id, len(result.results))
+        return result
 
-            results = [ApiPage(**result) for result in response["results"]]
-            converted_results: List[B] = [
-                self.convert_client_page(apiPage) for apiPage in results
-            ]
-
-            return PaginationResult[B](
-                results=converted_results,
-                has_more=response["has_more"],
-                next_cursor=response.get("next_cursor"),
-            )
-        except KeyError as ke:
-            raise RepositoryError(
-                message = "Failed to parse API response to internal model",
-                error_type = type(ke),
-                query=query
-            ) from None
-        except ConnectError as c_e:
-            raise RepositoryError(
-                error_type=type(c_e),
-                query=query
-            ) from None
-        except RequestTimeoutError as rto_e:
-            raise RepositoryError(
-                code = rto_e.code,
-                error_type = type(rto_e),
-                query = query) from None
-        except APIResponseError as api_e:
-            raise RepositoryError(
-                code= api_e.code,
-                status= api_e.status,
-                error_type= type(api_e),
-                query= query) from None
-        except HTTPResponseError as hr_e:
-            raise RepositoryError(
-                code=hr_e.code,
-                status=hr_e.status,
-                error_type=type(hr_e),
-                query=query) from None
-        except ValidationError as validation_e:
-            raise RepositoryError(
-                message=validation_e.json(),
-                error_type=type(validation_e),
-                query=query
-            ) from None
-        except Exception as e:
-            raise RepositoryError(
-                error_type=type(e),
-                message=str(e),
-                query=query) from None
+    @tracer
+    async def query_database(
+        self,
+        page: BasePage,
+        execution_context: ExecutionContext,
+        data_source_id: UUID,
+        relation: RelationDefinitions,
+        cursor: str | None = None,
+    ) -> PaginationResult[B]:
+        return await self._query_database(
+            page=page,
+            execution_context=execution_context,
+            data_source_id=data_source_id,
+            relation=relation,
+            cursor=cursor)
 
     async def create_page(self, page: B, debug: bool) -> bool:
         raise NotImplementedError(
