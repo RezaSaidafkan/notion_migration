@@ -27,7 +27,7 @@ K = TypeVar("K", bound="PageId")
 BP = TypeVar("BP", bound="BasePage")
 
 # Define B as Base type for both P & J
-B = TypeVar("B", bound="CommonPage")
+C = TypeVar("C", bound="CommonPage")
 
 # Define P as Page types
 P_co = TypeVar("P_co", bound="CommonPage", covariant=True)
@@ -81,9 +81,9 @@ class JournalProperties(BaseProperties):
         return f"{title} | {typ} | {status} | {timeline}"
 
 
-class BaseRelation(Generic[B], BaseModel):
-    Ancestors: Optional[Sequence[B]]
-    Descendants: Optional[Sequence[B]]
+class BaseRelation(Generic[C], BaseModel):
+    Ancestors: Optional[Sequence[C]]
+    Descendants: Optional[Sequence[C]]
 
     def __repr__(self):
         rel_parts: List[str] = []
@@ -191,8 +191,8 @@ def format_relation_heirarchy(
     return parent_repr
 
 
-class PaginationResult(BaseModel, Generic[B]):
-    results: List[B]
+class PaginationResult(BaseModel, Generic[C]):
+    results: List[C]
     has_more: bool
     next_cursor: Union[str, None]
 

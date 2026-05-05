@@ -1,7 +1,8 @@
 import asyncio
 import logging
 from collections.abc import Coroutine
-from typing import Any, Awaitable, List, Sequence
+from functools import singledispatchmethod
+from typing import Any, Awaitable, List, Sequence, Union, cast
 
 from common_libs.constants.literal_definitions import (
     JournalRelationsDefinition,
@@ -9,12 +10,11 @@ from common_libs.constants.literal_definitions import (
     TaskRelationsDefinition,
 )
 from common_libs.models.client_models import (
-    B,
     BasePage,
+    C,
     CommonPage,
     JournalPage,
     JournalRelation,
-    P_co,
     RelativePages,
     TaskPage,
     TaskRelation,
@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 
 class ServicePage(
     ServicePageInterface[BasePage,
-                         TaskPage,
+                         CommonPage,
                          TaskPage,
                          JournalPage,
                          RelativePages,
@@ -85,12 +85,12 @@ class ServicePage(
         self,
         page: BasePage,
         relation: RelationDefinitions,
-        datasource_info: DatasourceInfo[BasePage, B, RelationDefinitions],
+        datasource_info: DatasourceInfo[BasePage, C, RelationDefinitions],
         execution_context: ExecutionContext,
-        ) -> Sequence[B]:
+        ) -> Sequence[C]:
         exhausted = False
         cursor = None
-        pages: List[B] = []
+        pages: List[C] = []
         max_cursor_retries = 3
         cursor_retry_count = 0
 
@@ -148,7 +148,7 @@ class ServicePage(
     @tracer
     async def build_page_hierarchy(
         self,
-        page: TaskPage,
+        page: CommonPage,
         migration_context: MigrationContext[
             BasePage,
             TaskPage,
@@ -156,37 +156,23 @@ class ServicePage(
             RelationDefinitions],
         execution_context: ExecutionContext,
         level: int = 0,
-    ) -> Sequence[TaskPage]:  # pylint: disable=too-many-positional-arguments
-        """Return pages whose 'Ancestor' relation contains the given parent.
-
-        This method contains the schema knowledge ('Ancestor' relation) and
+    ) -> None:  # pylint: disable=too-many-positional-arguments
+        """Build the page hierarchy based on the schema knowledge ('Ancestor' relation) and
         delegates to the repository's generic `query_database` method.
         """
-        collected: List[TaskPage] = []
-
         self._service_execution_context = ServiceExecutionContext(
             execution_context=execution_context)
-
-        _ = await asyncio.gather(
-                self.process_source_recursive(
-                    page,
-                    level,
-                    collected,
-                    migration_context,
-                    execution_context
-                    )
-                )
-        return collected
+        await self.process_page_recursive(page, migration_context, execution_context)
 
     # pylint: disable=invalid-overridden-method
     # pylint: disable=too-many-positional-arguments, too-many-arguments
     def get_task_sub_pages(
         self,
         page: CommonPage,
-        datasource_info: DatasourceInfo[BasePage, B, RelationDefinitions],
+        datasource_info: DatasourceInfo[BasePage, Any, RelationDefinitions],
         relation: RelationDefinitions,
         execution_context: ExecutionContext,
-    ) -> Coroutine[Any, Any, Sequence[B]]:
+    ) -> Coroutine[Any, Any, Sequence[Union[TaskPage, JournalPage]]]:
         """Create a task to query sub-pages asynchronously.
         Note: Exceptions raised by the task will be collected by the TaskGroup
         and re-raised as ExceptionGroup when the TaskGroup exits.
@@ -205,110 +191,9 @@ class ServicePage(
                 f"Failed to create sub page for {page}",
             ) from se
 
-    async def process_source_recursive(
-        self,
-        page: TaskPage,
-        level: int,
-        collected: List[TaskPage],
-        migration_context: MigrationContext[
-            BasePage,
-            TaskPage,
-            JournalPage,
-            RelationDefinitions],
-        execution_context: ExecutionContext,
-    ):
-        try:
-            task_subpages_tasks: Awaitable[Sequence[TaskPage]] = self.get_task_sub_pages(
-                        page=page,
-                        datasource_info=migration_context.source_datasource_info,
-                        relation=TaskRelationsDefinition.ANCESTORS,
-                        execution_context=execution_context
-                        )
-
-            journal_pages_tasks: Awaitable[Sequence[JournalPage]] = self.get_task_sub_pages(
-                        page=page,
-                        datasource_info=migration_context.journal_datasource_info,
-                        relation=migration_context.junction_relation_definition,
-                        execution_context=execution_context
-                        )
-
-            results_subpages, results_journal_pages = await asyncio.gather(
-                task_subpages_tasks, journal_pages_tasks, return_exceptions=True
-            )
-
-            page.Relations = TaskRelation(Descendants=None, Ancestors=None, Journals=None)
-
-            if not isinstance(results_journal_pages, BaseException) and results_journal_pages != []:
-                if execution_context.debug:
-                    logger.debug("Processing Journals")
-                page.Relations.Journals = results_journal_pages
-                _ = await asyncio.gather(
-                    *[self.process_journal_recursive(
-                        journ_page,
-                        migration_context,
-                        execution_context)
-                    for journ_page in results_journal_pages],
-                    return_exceptions=True)
-
-            if not isinstance(results_subpages, BaseException) and results_subpages != []:
-                if execution_context.debug:
-                    logger.debug("Processing Subpages")
-                page.Relations.Descendants = results_subpages
-                _ = await asyncio.gather(
-                    *[self.process_source_recursive(
-                        sub_page,
-                        level + 1,
-                        collected,
-                        migration_context,
-                        execution_context)
-                    for sub_page in results_subpages],
-                    return_exceptions=True)
-
-            if level == 1 and self._service_execution_context.execution_context.debug:
-                logger.debug("The page hierarchy created")
-                collected.append(page)
-        except (RepositoryError, ServiceError):
-            logger.exception("Failed to recurse for page: %s", page.Properties.Title)
-
-    async def process_journal_recursive(
-        self,
-        page: JournalPage,
-        migration_context: MigrationContext[
-            BasePage,
-            TaskPage,
-            JournalPage,
-            RelationDefinitions],
-        execution_context: ExecutionContext):
-        """Process a journal page recursively, fetching its sub-journal pages.
-
-        Assigns the found sub-journal pages to the Relations.Descendants / Relations.Ancestors
-        attributes of the page.
-        """
-        sub_journal_pages: Sequence[JournalPage] = await self.get_task_sub_pages(
-            page=page,
-            datasource_info=migration_context.journal_datasource_info,
-            relation=JournalRelationsDefinition.ANCESTOR,
-            execution_context=execution_context
-        )
-
-        if sub_journal_pages:
-            page.Relations = JournalRelation(
-                JunctionRelation=migration_context.junction_relation_definition,
-                Descendants=sub_journal_pages,
-                Ancestors=[page],
-            )
-
-            _ = await asyncio.gather(
-                *[self.process_journal_recursive(
-                    journ_page,
-                    migration_context,
-                    execution_context)
-                  for journ_page in sub_journal_pages],
-                return_exceptions=True)
-
     async def create_or_update_page(
         self,
-        page: TaskPage,
+        page: CommonPage,
         migration_context: MigrationContext[
             BasePage,
             TaskPage,
@@ -321,7 +206,7 @@ class ServicePage(
 
     async def add_relations_to_page(
         self,
-        page: TaskPage,
+        page: CommonPage,
         relations: RelativePages,
         migration_context: MigrationContext[
             BasePage,
@@ -335,7 +220,7 @@ class ServicePage(
 
     async def remove_relations_from_page(
         self,
-        page: TaskPage,
+        page: CommonPage,
         relations: RelativePages,
         migration_context: MigrationContext[
             BasePage,
@@ -349,7 +234,7 @@ class ServicePage(
 
     async def migrate_page(
         self,
-        page: TaskPage,
+        page: CommonPage,
         migration_context: MigrationContext[BasePage, TaskPage, JournalPage, RelationDefinitions],
         execution_context: ExecutionContext
     ) -> None:
@@ -359,7 +244,7 @@ class ServicePage(
 
     async def migrate_pages(
         self,
-        pages: List[P_co],
+        pages: List[CommonPage],
         migration_context: MigrationContext[BasePage, TaskPage, JournalPage, RelationDefinitions],
         execution_context: ExecutionContext
     ) -> None:
@@ -383,3 +268,138 @@ class ServicePage(
         raise NotImplementedError(
             "This method should be implemented in the service layer."
         )
+
+    @singledispatchmethod
+    async def process_page_recursive(
+        self,
+        page: TaskPage | JournalPage,
+        migration_context: MigrationContext[
+            BasePage,
+            TaskPage,
+            JournalPage,
+            RelationDefinitions],
+        execution_context: ExecutionContext,
+    ) -> None:
+        _, _, _ = page, migration_context, execution_context
+
+
+
+    @process_page_recursive.register
+    async def _(
+        self,
+        page: TaskPage,
+        migration_context: MigrationContext[
+            BasePage,
+            TaskPage,
+            JournalPage,
+            RelationDefinitions],
+        execution_context: ExecutionContext,
+    ) -> None:
+        try:
+            task_subpages_tasks: Awaitable[Sequence[TaskPage]] = cast(
+                Awaitable[Sequence[TaskPage]],
+                self.get_task_sub_pages(
+                        page=page,
+                        datasource_info=migration_context.source_datasource_info,
+                        relation=TaskRelationsDefinition.ANCESTORS,
+                        execution_context=execution_context
+                        ))
+
+            journal_pages_tasks: Awaitable[Sequence[JournalPage]] = cast(
+                Awaitable[Sequence[JournalPage]],
+                self.get_task_sub_pages(
+                        page=page,
+                        datasource_info=migration_context.journal_datasource_info,
+                        relation=migration_context.junction_relation_definition,
+                        execution_context=execution_context
+                        )
+            )
+
+            results_subpages, results_journal_pages = await asyncio.gather(
+                task_subpages_tasks, journal_pages_tasks, return_exceptions=True
+            )
+
+            if not isinstance(results_journal_pages, BaseException) and results_journal_pages != []:
+                if execution_context.debug:
+                    logger.debug("Processing Journals")
+                self.assign_relationships(page, results_journal_pages)
+                _ = await asyncio.gather(
+                    *[self.process_page_recursive(
+                        journ_page,
+                        migration_context,
+                        execution_context)
+                    for journ_page in results_journal_pages],
+                    return_exceptions=True)
+
+            if not isinstance(results_subpages, BaseException) and results_subpages != []:
+                if execution_context.debug:
+                    logger.debug("Processing Subpages")
+                self.assign_relationships(page, results_subpages)
+                _ = await asyncio.gather(
+                    *[self.process_page_recursive(
+                        sub_page,
+                        migration_context,
+                        execution_context)
+                    for sub_page in results_subpages],
+                    return_exceptions=True)
+
+        except (RepositoryError, ServiceError):
+            logger.exception("Failed to recurse for page: %s", page.Properties.Title)
+
+
+    @process_page_recursive.register
+    async def _(
+        self,
+        page: JournalPage,
+        migration_context: MigrationContext[
+            BasePage,
+            TaskPage,
+            JournalPage,
+            RelationDefinitions],
+        execution_context: ExecutionContext,
+    ):
+        try:
+            sub_journal_pages: Sequence[JournalPage] = cast(
+                Sequence[JournalPage],
+                await self.get_task_sub_pages(
+                    page=page,
+                    datasource_info=migration_context.journal_datasource_info,
+                    relation=JournalRelationsDefinition.ANCESTOR,
+                    execution_context=execution_context
+                    )
+                )
+
+            if sub_journal_pages:
+                self.assign_relationships(page, sub_journal_pages)
+                await asyncio.gather(
+                    *[self.process_page_recursive(
+                        journ_page,
+                        migration_context,
+                        execution_context)
+                    for journ_page in sub_journal_pages],
+                    return_exceptions=True)
+        except (RepositoryError, ServiceError):
+            logger.exception("Failed to recurse for page: %s", page.Properties.Title)
+
+    @singledispatchmethod
+    def assign_relationships(self, page: CommonPage, sub_pages: Sequence[CommonPage]):
+        """Assign relationships to a page based on its type."""
+        _, _ = page, sub_pages
+
+    @assign_relationships.register
+    def _(self, page: JournalPage, sub_pages: Sequence[JournalPage]) -> None:
+        page.Relations = JournalRelation(
+            Descendants=sub_pages,
+            Ancestors=[page],
+            JunctionRelation=None)
+
+    @assign_relationships.register
+    def _(self, page: TaskPage, sub_pages: Sequence[TaskPage] | Sequence[JournalPage]) -> None:
+        if page.Relations is None:
+            page.Relations = TaskRelation(Descendants=None, Ancestors=None, Journals=None)
+
+        if sub_pages and isinstance(sub_pages[0], JournalPage):
+            if len(sub_pages) != 0:
+                page.Relations.Journals = cast(Sequence[JournalPage], sub_pages)
+        elif len(sub_pages) != 0:
+            page.Relations.Descendants = cast(Sequence[TaskPage], sub_pages)

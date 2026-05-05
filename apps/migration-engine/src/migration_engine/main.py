@@ -62,7 +62,7 @@ class Runner:
             execution_context=self._execution_context,
             migration_context=self._migration_context)
 
-        _ = await self.service.build_page_hierarchy(
+        await self.service.build_page_hierarchy(
             page=root_task_page,
             execution_context=self._execution_context,
             migration_context=self._migration_context)

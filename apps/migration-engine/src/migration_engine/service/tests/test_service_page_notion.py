@@ -10,7 +10,8 @@ from common_libs.models.client_models import (BasePage, JournalPage,
                                               JournalProperties, TaskPage,
                                               PageId, TaskProperties, 
                                               PaginationResult,
-                                              B)
+                                              C
+                                              )
 from common_libs.models.context import DatasourceInfo, MigrationContext, ExecutionContext
 from migration_engine.service.service_page_notion import ServicePage
 from migration_engine.repo.repo_page_notion import NotionRepoJournal, NotionRepoSource
@@ -218,7 +219,7 @@ class TestServicePage(unittest.IsolatedAsyncioTestCase):
             model=JournalPage)
 
         # Mock query_database to control the hierarchy
-        async def mock_query_db(page: BasePage, relation: RelationDefinitions, datasource_info: DatasourceInfo[BasePage, B, RelationDefinitions], execution_context: ExecutionContext):
+        async def mock_query_db(page: BasePage, relation: RelationDefinitions, datasource_info: DatasourceInfo[BasePage, C, RelationDefinitions], execution_context: ExecutionContext):
             if isinstance(datasource_info.repo, NotionRepoSource):
                 if page.Id.Id == root_page_uuid:
                     return [sub_page]  # root has one sub-page
@@ -229,34 +230,30 @@ class TestServicePage(unittest.IsolatedAsyncioTestCase):
                 return []  # no other journals
             return []
 
-        # Let the real process_source_recursive run, but mock its dependency (query_database)
+        # Let the real process_page_recursive run, but mock its dependency (query_database)
         # and the methods it calls recursively to stop the recursion.
-        with (
-            patch.object(
+        with patch.object(
                 self.service, "query_database", side_effect=mock_query_db
-            ) as mock_query,
-            patch.object(
-                self.service, "process_journal_recursive", new_callable=AsyncMock
-            ) as mock_process_journal,
-        ):
-            # We need to patch process_source_recursive to stop it from
+            ) as mock_query:
+            # We need to patch process_page_recursive to stop it from
             # recursing infinitely in the test.
             # The side_effect will call the real method once, then do nothing.
-            original_process_source = self.service.process_source_recursive
+            original_process_source = self.service.process_page_recursive
 
             async def side_effect_to_stop_recursion(*args, **kwargs):
                 # The first call is for the root page. Let it run.
-                if mock_process_source.call_count == 1:
+                if mock_process_page_recursive.call_count == 1:
                     return await original_process_source(*args, **kwargs)
                 # Subsequent calls (for sub_page) will do nothing, stopping recursion.
                 return
 
             with patch.object(
                 self.service,
-                "process_source_recursive",
+                "process_page_recursive",
                 side_effect=side_effect_to_stop_recursion,
-            ) as mock_process_source:
+            ) as mock_process_page_recursive:
                 # Act
+                
                 await self.service.build_page_hierarchy(root_page, self.migration_context, self.execution_context)
 
                 # Assertions
@@ -284,8 +281,8 @@ class TestServicePage(unittest.IsolatedAsyncioTestCase):
                 )
 
                 # Check recursive calls were initiated
-                self.assertEqual(mock_process_source.call_count, 2)  # root + sub_page
-                mock_process_journal.assert_awaited_once()
+                self.assertEqual(mock_process_page_recursive.call_count, 3)  # root + sub_page (both JournalPage and TaskPage)
+                mock_process_page_recursive.assert_called()
 
     async def test_query_database_with_cursor_expiration_recovery(self):
         """Test that query_database recovers from cursor expiration by restarting pagination."""

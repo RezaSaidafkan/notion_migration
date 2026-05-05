@@ -10,8 +10,8 @@ from uuid import UUID
 from common_libs.constants.literal_definitions import RelationDefinitions
 from common_libs.models.api_models import ApiPage
 from common_libs.models.client_models import (
-    B,
     BasePage,
+    C,
     JournalPage,
     JournalProperties,
     PageId,
@@ -207,9 +207,9 @@ class ClientSingleton:
 
 
 class NotionRepository(
-    Generic[B], RepositoryInterface[BasePage, B, RelationDefinitions], ClientSingleton):
+    Generic[C], RepositoryInterface[BasePage, C, RelationDefinitions], ClientSingleton):
     # pylint: disable=invalid-overridden-method
-    async def read_page(self, page: BasePage, debug: bool=False) -> B:
+    async def read_page(self, page: BasePage, debug: bool=False) -> C:
         try:
             raw_result = await self.notion.pages.retrieve(page_id=str(page.Id.Id))
             api_page = ApiPage(**raw_result)
@@ -230,7 +230,7 @@ class NotionRepository(
                 error_type=type(e)) from None
 
     @abstractmethod
-    def convert_client_page(self, result: ApiPage) -> B:
+    def convert_client_page(self, result: ApiPage) -> C:
         pass
 
     # pylint: disable=too-many-positional-arguments, too-many-arguments, too-many-locals
@@ -261,7 +261,7 @@ class NotionRepository(
         data_source_id: UUID,
         relation: RelationDefinitions,
         cursor: str | None = None,
-    ) -> PaginationResult[B]:
+    ) -> PaginationResult[C]:
 
         query: QueryType = {}
         response: Any = None
@@ -276,11 +276,11 @@ class NotionRepository(
         response = await self.notion.data_sources.query(str(data_source_id), **query)
 
         results = [ApiPage(**result) for result in response["results"]]
-        converted_results: List[B] = [
+        converted_results: List[C] = [
             self.convert_client_page(apiPage) for apiPage in results
         ]
 
-        result = PaginationResult[B](
+        result = PaginationResult[C](
             results=converted_results,
             has_more=response["has_more"],
             next_cursor=response.get("next_cursor"),
@@ -296,7 +296,7 @@ class NotionRepository(
         data_source_id: UUID,
         relation: RelationDefinitions,
         cursor: str | None = None,
-    ) -> PaginationResult[B]:
+    ) -> PaginationResult[C]:
         return await self._query_database(
             page=page,
             execution_context=execution_context,
@@ -304,12 +304,12 @@ class NotionRepository(
             relation=relation,
             cursor=cursor)
 
-    async def create_page(self, page: B, debug: bool) -> bool:
+    async def create_page(self, page: C, debug: bool) -> bool:
         raise NotImplementedError(
             "Creating pages is not implemented in NotionClientAPI"
         )
 
-    async def update_page(self, page: B, debug: bool) -> bool:
+    async def update_page(self, page: C, debug: bool) -> bool:
         raise NotImplementedError(
             "Updating pages is not implemented in NotionClientAPI"
         )

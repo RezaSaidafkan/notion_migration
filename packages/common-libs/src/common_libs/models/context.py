@@ -9,7 +9,7 @@ from common_libs.constants.literal_definitions import (
     JunctionRelationDefinition,
     TaskRelationsDefinition,
 )
-from common_libs.models.client_models import BP, RD, B, J_co, P_co
+from common_libs.models.client_models import BP, RD, C, J_co, P_co
 
 if TYPE_CHECKING:
     from migration_engine.repo.repo_page_interface import RepositoryInterface
@@ -26,9 +26,9 @@ class MigrationContext(Generic[BP, P_co, J_co, RD]):
 
 
 @dataclass
-class DatasourceInfo(Generic[BP, B, RD]):
+class DatasourceInfo(Generic[BP, C, RD]):
     datasource_id: UUID4
-    repo: RepositoryInterface[BP, B, RD]
+    repo: RepositoryInterface[BP, C, RD]
 
 
 @dataclass

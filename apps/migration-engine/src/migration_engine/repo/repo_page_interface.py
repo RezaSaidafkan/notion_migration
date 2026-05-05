@@ -3,7 +3,7 @@ from collections.abc import Coroutine
 from typing import Any, Dict, Generic, List, Optional
 from uuid import UUID
 
-from common_libs.models.client_models import BP, RD, B, PaginationResult
+from common_libs.models.client_models import BP, RD, C, PaginationResult
 from common_libs.models.context import ExecutionContext
 
 QueryType = Dict[str, str | int | Dict[str, str | Dict[str, str]]]
@@ -41,10 +41,10 @@ class RepositoryError(Exception):
 
         return " ".join(parts)
 
-class RepositoryInterface(Generic[BP, B, RD], ABC):
+class RepositoryInterface(Generic[BP, C, RD], ABC):
     @abstractmethod
     def read_page(self, page: BP, debug: bool = False
-    ) -> Coroutine[Any, Any, B]:
+    ) -> Coroutine[Any, Any, C]:
         pass
 
     # pylint: disable=too-many-positional-arguments, too-many-arguments
@@ -56,15 +56,15 @@ class RepositoryInterface(Generic[BP, B, RD], ABC):
         data_source_id: UUID,
         relation: RD,
         cursor: str | None = None
-    ) -> Coroutine[Any, Any, PaginationResult[B]]:
+    ) -> Coroutine[Any, Any, PaginationResult[C]]:
         pass
 
     @abstractmethod
-    def create_page(self, page: B, debug: bool
+    def create_page(self, page: C, debug: bool
     ) -> Coroutine[Any, Any, bool]:
         pass
 
     @abstractmethod
-    def update_page(self, page: B, debug: bool
+    def update_page(self, page: C, debug: bool
     ) -> Coroutine[Any, Any, bool]:
         pass
