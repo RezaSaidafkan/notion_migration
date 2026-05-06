@@ -254,7 +254,7 @@ class NotionRepository(
         )
     @tracer
     @synchronization_gating
-    async def _query_database(
+    async def _read_query_database(
         self,
         page: BasePage,
         execution_context: ExecutionContext,
@@ -297,17 +297,65 @@ class NotionRepository(
         relation: RelationDefinitions,
         cursor: str | None = None,
     ) -> PaginationResult[C]:
-        return await self._query_database(
+        return await self._read_query_database(
             page=page,
             execution_context=execution_context,
             data_source_id=data_source_id,
             relation=relation,
             cursor=cursor)
 
-    async def create_page(self, page: C, debug: bool) -> bool:
-        raise NotImplementedError(
-            "Creating pages is not implemented in NotionClientAPI"
+    @tracer
+    async def create_page(
+        self,
+        page: C,
+        execution_context: ExecutionContext,
+        parent_page_id: UUID,
+        debug: bool) -> bool:
+        return await self._create_page(
+            page=page,
+            execution_context=execution_context,
+            parent_page_id=parent_page_id,
+            debug=debug)
+
+    # pylint: disable=too-many-positional-arguments, too-many-arguments, too-many-locals
+    # pylint: disable=unused-argument, global-statement
+    @error_handling
+    @rate_limited
+    @retry(
+        reraise=True,
+        retry=retry_if_not_exception_type(
+            (RequestTimeoutError, HTTPResponseError, APIResponseError)),
+        retry_error_callback=set_on_exhausted,
         )
+    @retry(
+        reraise=True,
+        retry=retry_if_exception_type(
+            (RequestTimeoutError, HTTPResponseError, APIResponseError)),
+        wait=wait_error_callback(),
+        before_sleep=before_sleep_log(logger, logging.DEBUG),
+        retry_error_callback=set_on_exhausted,
+        stop=stop_after_attempt_dynamic(),
+        )
+    @tracer
+    @synchronization_gating
+    async def _create_page(
+        self,
+        page: C,
+        execution_context: ExecutionContext,
+        parent_page_id: UUID,
+        debug: bool
+        ) -> bool:
+        response = await self.notion.pages.create(
+            **{
+                "parent": {
+                    "data_source_id": str(parent_page_id)
+                },
+                },
+            **page.model_dump(mode="json", by_alias=True, exclude={"Id"})
+            )
+        if debug:
+            logger.debug("Page created: %s", response)
+        return True
 
     async def update_page(self, page: C, debug: bool) -> bool:
         raise NotImplementedError(

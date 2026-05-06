@@ -3,6 +3,7 @@ from typing import Generic, List, Optional, Sequence, TypeVar, Union
 from uuid import UUID
 
 from pydantic import BaseModel
+from sqlmodel import Field
 
 from common_libs.constants.literal_definitions import (
     JunctionRelationDefinition,
@@ -144,8 +145,8 @@ class BasePage(BaseModel):
     Id: PageId
 
 class CommonPage(BasePage):
-    Properties: Union[TaskProperties, JournalProperties]
-    Icon: Optional[IconProperty | ExternalEmoji | IconEmoji]
+    Properties: Union[TaskProperties, JournalProperties] = Field(serialization_alias='properties')
+    Icon: Optional[IconProperty | ExternalEmoji | IconEmoji] = Field(serialization_alias='icon')
 
     def __repr__(self):
         icon = self.Icon.__repr__() if self.Icon else ""

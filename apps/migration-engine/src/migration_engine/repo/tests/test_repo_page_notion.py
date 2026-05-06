@@ -69,7 +69,7 @@ def create_mock_api_page(page: BasePage, title: str) -> Dict[str, Any]:
     }
 
 
-class TestNotionRepoPage(unittest.IsolatedAsyncioTestCase):
+class TestNotionRepoTaskPage(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         # Reset singleton instance to ensure clean state for each test class
         ClientSingleton._instance = None
@@ -219,9 +219,23 @@ class TestNotionRepoPage(unittest.IsolatedAsyncioTestCase):
             result.results[1].Id.Id,
              page_2.Id.Id)
 
-    async def test_create_page_not_implemented(self):
-        with self.assertRaises(NotImplementedError):
-            await self.repo.create_page(MagicMock(), debug=False)
+    async def test_create_page_task(self):
+        # Arrange
+        mock_api_page = create_mock_api_page(BasePage(Id=PageId(Id=UUID('{12345678-1234-5678-1234-567812345678}'))), "MockPage")
+        mock_task_page = self.repo.convert_client_page(ApiPage.model_validate(mock_api_page))
+        execution_id = UUID('{02345678-1234-5678-1234-567812345678}')
+        execution_context = ExecutionContext(debug=True, page_size=1, execution_id=execution_id)
+        parent_page_id = UUID('{12345678-1234-5678-1234-567812345678}')
+        
+        # Act
+        await self.repo.create_page(page=mock_task_page, execution_context=execution_context, parent_page_id=parent_page_id, debug=False)
+        
+        # Assert
+        self.mock_notion_client.pages.create.assert_awaited_once_with(
+            parent={"data_source_id": str(parent_page_id)},
+            **mock_task_page.model_dump(mode="json", by_alias=True, exclude={"Id"})
+        )
+
 
     async def test_update_page_not_implemented(self):
         with self.assertRaises(NotImplementedError):
@@ -262,6 +276,24 @@ class TestNotionRepoJournalPage(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             result.Properties.Title.title[0].text.content, "Test Journal Page"
         )
+        
+    async def test_create_page_journal(self):
+        # Arrange
+        mock_api_page = create_mock_api_page(BasePage(Id=PageId(Id=UUID('{12345678-1234-5678-1234-567812345678}'))), "MockPage")
+        mock_task_page = self.repo.convert_client_page(ApiPage.model_validate(mock_api_page))
+        execution_id = UUID('{02345678-1234-5678-1234-567812345678}')
+        execution_context = ExecutionContext(debug=True, page_size=1, execution_id=execution_id)
+        parent_page_id = UUID('{12345678-1234-5678-1234-567812345678}')
+        
+        # Act
+        await self.repo.create_page(page=mock_task_page, execution_context=execution_context, parent_page_id=parent_page_id, debug=False)
+        
+        # Assert
+        self.mock_notion_client.pages.create.assert_awaited_once_with(
+            parent={"data_source_id": str(parent_page_id)},
+            **mock_task_page.model_dump(mode="json", by_alias=True, exclude={"Id"})
+        )
+
 
     def test_convert_client_page(self):
         page = BasePage(Id=PageId(Id=UUID('{12345678-1234-5678-1234-567812345678}')))

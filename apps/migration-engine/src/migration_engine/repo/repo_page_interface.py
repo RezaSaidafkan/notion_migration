@@ -60,7 +60,12 @@ class RepositoryInterface(Generic[BP, C, RD], ABC):
         pass
 
     @abstractmethod
-    def create_page(self, page: C, debug: bool
+    def create_page(
+        self,
+        page: C,
+        execution_context: ExecutionContext,
+        parent_page_id: UUID,
+        debug: bool
     ) -> Coroutine[Any, Any, bool]:
         pass
 
