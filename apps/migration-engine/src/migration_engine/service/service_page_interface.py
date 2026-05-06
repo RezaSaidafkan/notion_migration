@@ -95,7 +95,7 @@ class ServicePageInterface(ABC, Generic[BP, C, P_co, J_co, R, RD]):
     @abstractmethod
     def migrate_page(
         self,
-        page: C,
+        page: BP,
         migration_context: MigrationContext[BP, P_co, J_co, RD],
         execution_context: ExecutionContext
         ) -> Coroutine[Any, Any, None]:

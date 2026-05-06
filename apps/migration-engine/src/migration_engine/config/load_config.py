@@ -2,7 +2,7 @@ from uuid import UUID
 
 from common_libs.constants.literal_definitions import JunctionRelationDefinition
 from common_libs.utils.load_config import get_env_vars
-from pydantic import UUID4, BaseModel, ValidationError
+from pydantic import UUID4, UUID8, BaseModel, ValidationError
 
 DEFAULT_TIME_PERIOD = 1
 DEFAULT_MAX_RATE = 3
@@ -18,7 +18,7 @@ class Config(BaseModel):
     notion_api_key: str
     source_datasource_id: UUID4
     journal_datasource_id: UUID4
-    target_datasource_id: UUID4
+    target_datasource_id: UUID4 | UUID8
     source_parent_page_id: UUID
     junction_relation_definition: JunctionRelationDefinition
     page_size: int

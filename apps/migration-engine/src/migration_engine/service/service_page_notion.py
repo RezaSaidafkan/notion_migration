@@ -196,13 +196,14 @@ class ServicePage(
         page: CommonPage,
         migration_context: MigrationContext[
             BasePage,
-            TaskPage,
-            JournalPage,
+            CommonPage,
+            CommonPage,
             RelationDefinitions],
         execution_context: ExecutionContext) -> bool:
         raise NotImplementedError(
             "This method should be implemented in the service layer."
         )
+
 
     async def add_relations_to_page(
         self,
@@ -232,15 +233,24 @@ class ServicePage(
             "This method should be implemented in the service layer."
         )
 
+    @tracer
     async def migrate_page(
         self,
-        page: CommonPage,
+        page: BasePage,
         migration_context: MigrationContext[BasePage, TaskPage, JournalPage, RelationDefinitions],
         execution_context: ExecutionContext
     ) -> None:
-        raise NotImplementedError(
-            "This method should be implemented in the service layer."
-        )
+        try:
+            retrieved_page = await self.read_page(
+                page=page,
+                execution_context=execution_context,
+                migration_context=migration_context)
+            await migration_context.target_datasource_info.repo.create_page(page=retrieved_page, execution_context=execution_context, parent_page_id=migration_context.target_datasource_info.datasource_id, debug=execution_context.debug)
+        except RepositoryError as re:
+            raise ServiceError(
+                f"Failed to migrate page: '{page.Id.Id}'",
+            ) from re
+
 
     async def migrate_pages(
         self,

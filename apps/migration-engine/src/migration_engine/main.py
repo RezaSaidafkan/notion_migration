@@ -52,7 +52,7 @@ class Runner:
         self._execution_context = execution_context
         self.service = spn.ServicePage()
 
-    async def run(
+    async def build_page_hierarchy(
         self,
         source_parent_page_id: UUID,
     ) -> TaskPage:
@@ -68,6 +68,23 @@ class Runner:
             migration_context=self._migration_context)
 
         return root_task_page
+
+    async def run_end_to_end_migration(self, source_parent_page_id: UUID,
+    ) -> None:
+        """Execute the full migration process:
+        1. Builds the page hierarchy from the source.
+        2. Migrates the pages to the target datasource.
+        """
+        logger.info("Starting end-to-end migration for page: '%s'", source_parent_page_id)
+        print("AAA", vars(self._execution_context))
+
+        await self.service.migrate_page(
+            page=BasePage(Id=PageId(Id=source_parent_page_id)),
+            migration_context=self._migration_context,
+            execution_context=self._execution_context
+        )
+
+        logger.info("Migration completed successfully for page: '%s'", source_parent_page_id)
 
 
 async def execute_migration_engine():
@@ -119,11 +136,14 @@ async def execute_migration_engine():
 
         runner = Runner(execution_context, migration_context)
 
-        root_task_page = await runner.run(
+        # root_task_page = await runner.build_page_hierarchy(
+        #     source_parent_page_id=GLOBAL_CONFIG.source_parent_page_id
+        # )
+        # logger.info("Root Page Hierarchy:\nLeaves Count:%s",
+        #             count_leaves(root_task_page))
+        await runner.run_end_to_end_migration(
             source_parent_page_id=GLOBAL_CONFIG.source_parent_page_id
         )
-        logger.info("Root Page Hierarchy:\nLeaves Count:%s",
-                    count_leaves(root_task_page))
 
     except KeyError:
         raise MigrationEngineError(
