@@ -49,17 +49,19 @@ class PageId(BaseModel):
 
 class BaseProperties(BaseModel):
     Title: TitleProperty
-    Type: Optional[SelectProperty]
-    Timeline: Optional[TimelineProperty]
-    Description: Optional[RichTextProperty]
+    Type: Optional[SelectProperty] = None
+    Timeline: Optional[TimelineProperty] = None
+    Description: Optional[RichTextProperty] = None
+
+
 
 
 # pylint: disable = too-many-instance-attributes
 class TaskProperties(BaseProperties):
-    Assignee: Optional[PeopleProperty]
-    Priority: Optional[SelectProperty]
-    Urgency: Optional[SelectProperty]
-    Status: Optional[StatusProperty | SelectProperty]
+    Assignee: Optional[PeopleProperty] = None
+    Priority: Optional[SelectProperty] = None
+    Urgency: Optional[SelectProperty] = None
+    Status: Optional[StatusProperty | SelectProperty] = None
 
     def __repr__(self):
         title = self.Title.__repr__() if self.Title else "<Title: None>"
@@ -72,7 +74,7 @@ class TaskProperties(BaseProperties):
 class JournalProperties(BaseProperties):
     Status: Optional[
         SelectProperty | StatusProperty
-    ]  # update in the database, now we have State in source db and Select in journal db
+    ] = None  # update in the database, now we have State in source db and Select in journal db
 
     def __repr__(self):
         title = self.Title.__repr__() if self.Title else "<Title: None>"
@@ -173,6 +175,36 @@ class JournalPage(CommonPage):
                 super().__repr__(), self.Relations.__repr__(), "Relations"
             )
         return super().__repr__()
+
+
+class PageUpdate(BaseModel):
+    Properties: Union[TaskProperties, JournalProperties] = Field(
+        serialization_alias='properties',
+        validation_alias='properties')
+    Icon: Optional[IconProperty | ExternalEmoji | IconEmoji] = Field(
+        serialization_alias='icon',
+        validation_alias='icon',
+        default=None)
+    Cover: Optional[IconProperty | ExternalEmoji | IconEmoji] = Field(
+        serialization_alias='cover',
+        validation_alias='cover',
+        default=None)
+    InTrash: Optional[bool] = Field(
+        serialization_alias='in_trash',
+        validation_alias='in_trash',
+        default=None)
+    Archived: Optional[bool] = Field(
+        serialization_alias='archived',
+        validation_alias='archived',
+        default=None)
+    IsLocked: Optional[bool] = Field(
+        serialization_alias='is_locked',
+        validation_alias='is_locked',
+        default=None)
+    Template: Optional[bool] = Field(
+        serialization_alias='template',
+        validation_alias='template',
+        default=None)
 
 
 def indent(text: str, prefix: str = "\t") -> str:

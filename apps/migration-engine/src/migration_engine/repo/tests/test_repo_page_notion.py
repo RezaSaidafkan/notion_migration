@@ -7,7 +7,7 @@ from typing import Dict, Any
 from common_libs.models.api_models import ApiPage
 from common_libs.models.client_models import (PageId,
                                               BasePage,
-                                              JournalPage, JournalProperties,
+                                              JournalPage, JournalProperties, PageUpdate,
                                               TaskPage, TaskProperties,
                                               PaginationResult)
 from common_libs.models.context import ExecutionContext
@@ -15,6 +15,7 @@ from common_libs.constants.literal_definitions import TaskRelationsDefinition
 from migration_engine.repo.repo_page_notion import (ClientSingleton,
                                                     NotionRepoJournal,
                                                     NotionRepoSource)
+from pydantic_core import ValidationError
 
 
 def create_mock_api_page(page: BasePage, title: str) -> Dict[str, Any]:
@@ -34,7 +35,9 @@ def create_mock_api_page(page: BasePage, title: str) -> Dict[str, Any]:
                 "title": [
                     {
                         "type": "text",
-                        "text": {"content": title, "link": None},
+                        "text": {
+                            "content": title,
+                            "link": None},
                         "plain_text": title,
                     }
                 ],
@@ -66,6 +69,45 @@ def create_mock_api_page(page: BasePage, title: str) -> Dict[str, Any]:
             "Descendants": None,
             "Journals": None,
         },
+    }
+
+def create_mock_api_update() -> Dict[str, Any]:
+    return {
+        "properties": {
+            "Title": {
+                    "id": "title_id",
+                    "type": "title",
+                    "title": [
+                        {
+                            "type": "text",
+                            "text": {
+                                "content": "Updated Title",
+                                "link": None
+                            }
+                         }
+                    ],
+            },
+            "Status": {
+                "id": "status_id",
+                "type": "status",
+                "status": {
+                    "name": "Completed"
+                }
+            }
+        },
+        "icon": {
+            "type": "emoji",
+            "emoji": "🎉",
+        },
+        "cover": {
+            "type": "external",
+            "external": {
+                "url": "https://example.com/cover.png"
+            }
+        },
+        "archived": False,
+        "is_locked": False,
+        "in_trash": False,
     }
 
 
@@ -237,9 +279,32 @@ class TestNotionRepoTaskPage(unittest.IsolatedAsyncioTestCase):
         )
 
 
-    async def test_update_page_not_implemented(self):
-        with self.assertRaises(NotImplementedError):
-            await self.repo.update_page(MagicMock(), debug=False)
+    async def test_update_page(self):
+        # Arrange
+        mock_api_page = create_mock_api_page(BasePage(Id=PageId(Id=UUID('{12345678-1234-5678-1234-567812345678}'))), "MockPage")
+        mock_task_page = self.repo.convert_client_page(ApiPage.model_validate(mock_api_page))
+        execution_id = UUID('{02345678-1234-5678-1234-567812345678}')
+        execution_context = ExecutionContext(debug=True, page_size=1, execution_id=execution_id)
+        parent_page_id = UUID('{12345678-1234-5678-1234-567812345678}')
+        
+        mock_api_update_properties = create_mock_api_update()
+        mock_client_update_properties=PageUpdate.model_validate(mock_api_update_properties, by_alias=True)
+        
+        # Act
+        await self.repo.update_page(
+            page=mock_task_page,
+            execution_context=execution_context,
+            parent_page=parent_page_id,
+            update_properties=mock_client_update_properties,
+            debug=False
+        )
+        
+        # Assert
+        self.mock_notion_client.pages.update.assert_awaited_once_with(
+            page_id=str(mock_task_page.Id.Id),
+            **mock_client_update_properties.model_dump(mode="json", by_alias=True, exclude={"Id"})
+        )
+
 
     def tearDown(self):
         self.client_patcher.stop()

@@ -15,6 +15,7 @@ from common_libs.models.client_models import (
     JournalPage,
     JournalProperties,
     PageId,
+    PageUpdate,
     PaginationResult,
     TaskPage,
     TaskProperties,
@@ -345,7 +346,7 @@ class NotionRepository(
         parent_page_id: UUID,
         debug: bool
         ) -> bool:
-        response = await self.notion.pages.create(
+        result = await self.notion.pages.create(
             **{
                 "parent": {
                     "data_source_id": str(parent_page_id)
@@ -354,13 +355,66 @@ class NotionRepository(
             **page.model_dump(mode="json", by_alias=True, exclude={"Id"})
             )
         if debug:
-            logger.debug("Page created: %s", response)
+            logger.debug("Page created: %s", result)
         return True
 
-    async def update_page(self, page: C, debug: bool) -> bool:
-        raise NotImplementedError(
-            "Updating pages is not implemented in NotionClientAPI"
+    # pylint: disable=too-many-positional-arguments, too-many-arguments, too-many-locals
+    # pylint: disable=unused-argument, global-statement
+    @error_handling
+    @rate_limited
+    @retry(
+        reraise=True,
+        retry=retry_if_not_exception_type(
+            (RequestTimeoutError, HTTPResponseError, APIResponseError)),
+        retry_error_callback=set_on_exhausted,
         )
+    @retry(
+        reraise=True,
+        retry=retry_if_exception_type(
+            (RequestTimeoutError, HTTPResponseError, APIResponseError)),
+        wait=wait_error_callback(),
+        before_sleep=before_sleep_log(logger, logging.DEBUG),
+        retry_error_callback=set_on_exhausted,
+        stop=stop_after_attempt_dynamic(),
+        )
+    @tracer
+    @synchronization_gating
+    async def update_page(
+        self,
+        page: C,
+        execution_context: ExecutionContext,
+        parent_page: UUID,
+        update_properties: PageUpdate,
+        debug: bool
+    ) -> bool:
+        # constrain the PageUpdate.Properties to parent_page:
+        # Datasource (the type is not implemented yet)
+        # To change the properties of a page in a data source, use the properties body parameter.
+        # This parameter can only be used if the page’s parent is a data source,
+        # aside from updating the title of a page outside of a data source.
+        return await self._update_page(
+            page=page,
+            execution_context=execution_context,
+            parent_page=parent_page,
+            update_properties=update_properties,
+            debug=debug)
+
+    @tracer
+    async def _update_page(
+        self,
+        page: C,
+        execution_context: ExecutionContext,
+        parent_page: UUID,
+        update_properties: PageUpdate,
+        debug: bool
+    ) -> bool:
+        result = await self.notion.pages.update(
+            page_id=str(page.Id.Id),
+            **update_properties.model_dump(mode="json", by_alias=True, exclude={"Id"})
+            )
+        if debug:
+            logger.debug("Page updated: '%s'", result)
+        return True
 
 
 class NotionRepoSource(NotionRepository[TaskPage]):

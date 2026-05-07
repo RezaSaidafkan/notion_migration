@@ -3,7 +3,7 @@ from collections.abc import Coroutine
 from typing import Any, Dict, Generic, List, Optional
 from uuid import UUID
 
-from common_libs.models.client_models import BP, RD, C, PaginationResult
+from common_libs.models.client_models import BP, RD, C, PageUpdate, PaginationResult
 from common_libs.models.context import ExecutionContext
 
 QueryType = Dict[str, str | int | Dict[str, str | Dict[str, str]]]
@@ -70,6 +70,12 @@ class RepositoryInterface(Generic[BP, C, RD], ABC):
         pass
 
     @abstractmethod
-    def update_page(self, page: C, debug: bool
+    def update_page(
+        self,
+        page: C,
+        execution_context: ExecutionContext,
+        parent_page: UUID,
+        update_properties: PageUpdate,
+        debug: bool
     ) -> Coroutine[Any, Any, bool]:
         pass
