@@ -76,9 +76,9 @@ class TestTracing(unittest.IsolatedAsyncioTestCase):
             mocked_tracing_singleton.send_trace_page = mocked_send_trace_page
             
             # Act & Assert
-            from migration_engine.main import execute_migration_engine, MigrationEngineError
+            from migration_engine.main import build_page_hierarchy, MigrationEngineError
             with self.assertRaises(MigrationEngineError):
-                await execute_migration_engine()
+                await build_page_hierarchy()
             mocked_tracing.return_value.send_trace_page.assert_called_once()
             assert "Mocked read_page Error" in str(mocked_tracing.return_value.send_trace_page.mock_calls[0])
 

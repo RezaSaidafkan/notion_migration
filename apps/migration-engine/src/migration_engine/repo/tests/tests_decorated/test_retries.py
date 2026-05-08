@@ -1,7 +1,5 @@
-import importlib
 import json
 import os
-import sys
 import unittest
 from functools import reduce
 from pathlib import Path
@@ -86,12 +84,12 @@ class TestRetries(unittest.IsolatedAsyncioTestCase):
             patch("migration_engine.repo.repo_page_notion.ATTEMPT_TRIAL_NUMBER", MOCKED_ATTEMPT_TRIAL_NUMBER),\
             patch("common_libs.singletons.rate_limiter_singleton.AsyncLimiter"),\
             patch("common_libs.utils.tracing.Tracing") as mocked_tracing:
-            from migration_engine.main import execute_migration_engine
+            from migration_engine.main import build_page_hierarchy
 
             tracing_instance = mocked_tracing.return_value
 
             # Act
-            await execute_migration_engine()
+            await build_page_hierarchy()
 
             # Assert
             path = ["trace", "outcome", "failure"]
@@ -133,12 +131,12 @@ class TestRetries(unittest.IsolatedAsyncioTestCase):
             patch("migration_engine.repo.repo_page_notion.ATTEMPT_TRIAL_NUMBER", MOCKED_ATTEMPT_TRIAL_NUMBER),\
             patch("common_libs.singletons.rate_limiter_singleton.AsyncLimiter"),\
             patch("common_libs.utils.tracing.Tracing") as mocked_tracing:
-            from migration_engine.main import execute_migration_engine
+            from migration_engine.main import build_page_hierarchy
 
             tracing_instance = mocked_tracing.return_value
 
             # Act & Assert
-            await execute_migration_engine()
+            await build_page_hierarchy()
             path = ["trace", "outcome", "failure"]
             results = [
                 reduce(lambda d, key: d.get(key, {}) if isinstance(d, dict) else None,
@@ -191,12 +189,12 @@ class TestRetries(unittest.IsolatedAsyncioTestCase):
             patch("migration_engine.repo.repo_page_notion.ATTEMPT_TRIAL_NUMBER", MOCKED_ATTEMPT_TRIAL_NUMBER),\
             patch("common_libs.singletons.rate_limiter_singleton.AsyncLimiter"),\
             patch("common_libs.utils.tracing.Tracing") as mocked_tracing:
-            from migration_engine.main import execute_migration_engine
+            from migration_engine.main import build_page_hierarchy
                 
             tracing_instance = mocked_tracing.return_value
 
             # Act & Assert
-            await execute_migration_engine()
+            await build_page_hierarchy()
             path = ["trace", "outcome", "failure"]
             results = [
                 reduce(lambda d, key: d.get(key, {}) if isinstance(d, dict) else None,

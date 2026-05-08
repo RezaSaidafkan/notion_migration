@@ -346,13 +346,15 @@ class NotionRepository(
         parent_page_id: UUID,
         debug: bool
         ) -> bool:
+        from pprint import pprint;
+        pprint(page.model_dump(mode="json", by_alias=True, exclude={"Id"}, exclude_none=True))
         result = await self.notion.pages.create(
             **{
                 "parent": {
                     "data_source_id": str(parent_page_id)
                 },
                 },
-            **page.model_dump(mode="json", by_alias=True, exclude={"Id"})
+            **page.model_dump(mode="json", by_alias=True, exclude={"Id"}, exclude_none=True)
             )
         if debug:
             logger.debug("Page created: %s", result)

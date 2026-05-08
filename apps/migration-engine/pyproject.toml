@@ -33,4 +33,6 @@ common-libs = { workspace = true }
 package = true
 
 [project.scripts]
-migration-engine = "migration_engine.main:main"
+run_build_page_hierarchy = "migration_engine.main:run_build_page_hierarchy"
+run_end_to_end_migration = "migration_engine.main:run_end_to_end_migration"
+
