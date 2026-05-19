@@ -2,12 +2,16 @@ import logging
 from time import perf_counter
 from typing import Any, Awaitable
 
-from common_libs.models.client_models import CommonPage
+from common_libs.models.client_models import JournalPage, TaskPage
 
 logger = logging.getLogger()
 
 
-async def timed(coro: Awaitable[Any], page: CommonPage, label: str, debug: bool = False) -> Any:
+async def timed(
+    coro: Awaitable[Any],
+    page: TaskPage | JournalPage,
+    label: str,
+    debug: bool = False) -> Any:
     if debug:
         t0 = perf_counter()
         res = await coro

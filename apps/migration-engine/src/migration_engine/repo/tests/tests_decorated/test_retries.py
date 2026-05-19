@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
-from common_libs.models.client_models import JunctionRelationDefinition
+from common_libs.constants.literal_definitions import JunctionRelationDefinition
 from httpx import Response
 from notion_client.errors import APIErrorCode, APIResponseError, RequestTimeoutError
 

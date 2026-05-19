@@ -10,14 +10,15 @@ from common_libs.constants.literal_definitions import (
     TaskRelationsDefinition,
 )
 from common_libs.models.client_models import (
+    Ancestors,
     BasePage,
     C,
     CommonPage,
+    Descendants,
     JournalPage,
-    JournalRelation,
+    Journals,
     RelativePages,
     TaskPage,
-    TaskRelation,
 )
 from common_libs.models.context import (
     DatasourceInfo,
@@ -43,7 +44,6 @@ class ServicePage(
                          CommonPage,
                          TaskPage,
                          JournalPage,
-                         RelativePages,
                          RelationDefinitions]):
     """Service layer for page-related domain logic.
 
@@ -207,7 +207,7 @@ class ServicePage(
 
     async def add_relations_to_page(
         self,
-        page: CommonPage,
+        page: TaskPage | JournalPage,
         relations: RelativePages,
         migration_context: MigrationContext[
             BasePage,
@@ -258,7 +258,7 @@ class ServicePage(
 
     async def migrate_pages(
         self,
-        pages: List[CommonPage],
+        pages: List[BasePage],
         migration_context: MigrationContext[BasePage, TaskPage, JournalPage, RelationDefinitions],
         execution_context: ExecutionContext
     ) -> None:
@@ -268,7 +268,7 @@ class ServicePage(
 
     async def verify_page_migration(
         self,
-        page: CommonPage,
+        page: BasePage,
         migration_context: MigrationContext[BasePage, TaskPage, JournalPage, RelationDefinitions],
         execution_context: ExecutionContext) -> bool:
         raise NotImplementedError(
@@ -402,18 +402,20 @@ class ServicePage(
 
     @assign_relationships.register
     def _(self, page: JournalPage, sub_pages: Sequence[JournalPage]) -> None:
-        page.Relations = JournalRelation(
-            Descendants=sub_pages,
-            Ancestors=[page],
-            JunctionRelation=None)
+        if page.Properties.Descendants is None:
+            page.Properties.Descendants = Descendants(Items=sub_pages)
+        if page.Properties.Ancestors is None:
+            page.Properties.Ancestors = Ancestors(Items=[page])
+        if page.Properties.JunctionRelation is None:
+            # to be implemented later on
+            page.Properties.JunctionRelation = None
 
     @assign_relationships.register
     def _(self, page: TaskPage, sub_pages: Sequence[TaskPage] | Sequence[JournalPage]) -> None:
-        if page.Relations is None:
-            page.Relations = TaskRelation(Descendants=None, Ancestors=None, Journals=None)
-
+        if page.Properties.Ancestors is None:
+            page.Properties.Ancestors = Ancestors(Items=[page])
         if sub_pages and isinstance(sub_pages[0], JournalPage):
             if len(sub_pages) != 0:
-                page.Relations.Journals = cast(Sequence[JournalPage], sub_pages)
+                page.Properties.Journals = Journals(Items=sub_pages)
         elif len(sub_pages) != 0:
-            page.Relations.Descendants = cast(Sequence[TaskPage], sub_pages)
+            page.Properties.Descendants = Descendants(Items=sub_pages)

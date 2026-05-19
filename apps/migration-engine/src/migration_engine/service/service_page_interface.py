@@ -3,7 +3,7 @@ from collections.abc import Coroutine
 from dataclasses import dataclass
 from typing import Any, Generic, List, Sequence, Union
 
-from common_libs.models.client_models import BP, RD, C, J_co, P_co, R
+from common_libs.models.client_models import BP, RD, C, J_co, P_co, RelativePages
 from common_libs.models.context import (
     DatasourceInfo,
     ExecutionContext,
@@ -21,7 +21,7 @@ class ServiceExecutionContext:
     execution_context: ExecutionContext
 
 
-class ServicePageInterface(ABC, Generic[BP, C, P_co, J_co, R, RD]):
+class ServicePageInterface(ABC, Generic[BP, C, P_co, J_co, RD]):
     @abstractmethod
     def read_page(
         self,
@@ -66,7 +66,7 @@ class ServicePageInterface(ABC, Generic[BP, C, P_co, J_co, R, RD]):
     @abstractmethod
     def create_or_update_page(
         self,
-        page: C,
+        page: P_co | J_co,
         migration_context: MigrationContext[BP, P_co, J_co, RD],
         execution_context: ExecutionContext
         ) -> Coroutine[Any, Any, bool]:
@@ -75,8 +75,8 @@ class ServicePageInterface(ABC, Generic[BP, C, P_co, J_co, R, RD]):
     @abstractmethod
     def add_relations_to_page(
         self,
-        page: C,
-        relations: R,
+        page: P_co | J_co,
+        relations: RelativePages,
         migration_context: MigrationContext[BP, P_co, J_co, RD],
         execution_context: ExecutionContext
         ) -> Coroutine[Any, Any, None]:
@@ -85,8 +85,8 @@ class ServicePageInterface(ABC, Generic[BP, C, P_co, J_co, R, RD]):
     @abstractmethod
     def remove_relations_from_page(
         self,
-        page: C,
-        relations: R,
+        page: P_co | J_co,
+        relations: RelativePages,
         migration_context: MigrationContext[BP, P_co, J_co, RD],
         execution_context: ExecutionContext
         ) -> Coroutine[Any, Any, None]:
@@ -104,7 +104,7 @@ class ServicePageInterface(ABC, Generic[BP, C, P_co, J_co, R, RD]):
     @abstractmethod
     def migrate_pages(
         self,
-        pages: List[C],
+        pages: List[BP],
         migration_context: MigrationContext[BP, P_co, J_co, RD],
         execution_context: ExecutionContext
         ) -> Coroutine[Any, Any, None]:

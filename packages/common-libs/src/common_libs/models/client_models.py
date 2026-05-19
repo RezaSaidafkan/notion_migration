@@ -1,14 +1,11 @@
 # pylint: disable = C0103
-from typing import Generic, List, Optional, Sequence, TypeVar, Union
+from typing import Dict, Generic, List, Optional, Sequence, TypeVar, Union
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_serializer
 from sqlmodel import Field
 
-from common_libs.constants.literal_definitions import (
-    JunctionRelationDefinition,
-    RelationDefinitions,
-)
+from common_libs.constants.literal_definitions import RelationDefinitions
 
 from .api_models import (
     ExternalEmoji,
@@ -40,20 +37,48 @@ J_co = TypeVar("J_co", bound="CommonPage", covariant=True)
 RD = TypeVar("RD", bound=RelationDefinitions)
 
 # Define Related pages
-R = TypeVar("R", bound=Union["TaskRelation", "JournalRelation"])
+RelativePages = Union["Ancestors", "Descendants", "ForwardTrack", "BackTrack", "JunctionRelation"]
 
 
 class PageId(BaseModel):
     Id: UUID
 
 
+class Relation(BaseModel):
+    Items: Sequence[TaskPage | JournalPage]
+
+    @model_serializer(mode="plain")
+    def serialize_items(self) -> Dict[str, List[str] | str]:
+        return {"relation": [str(item.Id.Id) for item in self.Items],
+                "type": "relation"}
+
+
+class Ancestors(Relation):
+    pass
+
+class Descendants(Relation):
+    pass
+
+class Journals(Relation):
+    pass
+
+class ForwardTrack(Relation):
+    pass
+
+class BackTrack(Relation):
+    pass
+
+class JunctionRelation(Relation):
+    pass
+
 class BaseProperties(BaseModel):
     Title: TitleProperty
     Type: Optional[SelectProperty] = None
     Timeline: Optional[TimelineProperty] = None
     Description: Optional[RichTextProperty] = None
-
-
+    # Relations
+    Ancestors: Optional[Ancestors] = None
+    Descendants: Optional[Descendants] = None
 
 
 # pylint: disable = too-many-instance-attributes
@@ -62,6 +87,9 @@ class TaskProperties(BaseProperties):
     Priority: Optional[SelectProperty] = None
     Urgency: Optional[SelectProperty] = None
     Status: Optional[StatusProperty | SelectProperty] = None
+    # Relations
+    Journals: Optional[Journals] = None
+
 
     def __repr__(self):
         title = self.Title.__repr__() if self.Title else "<Title: None>"
@@ -76,6 +104,11 @@ class JournalProperties(BaseProperties):
         SelectProperty | StatusProperty
     ] = None  # update in the database, now we have State in source db and Select in journal db
 
+    # Relations
+    Forwardtrack: Optional[ForwardTrack] = None
+    Backtrack: Optional[BackTrack] = None
+    JunctionRelation: Optional[JunctionRelation] = None
+
     def __repr__(self):
         title = self.Title.__repr__() if self.Title else "<Title: None>"
         typ = self.Type.__repr__() if self.Type else "<Type: None>"
@@ -84,97 +117,40 @@ class JournalProperties(BaseProperties):
         return f"{title} | {typ} | {status} | {timeline}"
 
 
-class BaseRelation(Generic[C], BaseModel):
-    Ancestors: Optional[Sequence[C]]
-    Descendants: Optional[Sequence[C]]
-
-    def __repr__(self):
-        rel_parts: List[str] = []
-        if self.Descendants:
-            for page in self.Descendants:
-                page_text = repr(page)
-                rel_parts.append(indent(page_text, "\t"))
-
-        if rel_parts:
-            return format_relation_heirarchy("", "\n".join(rel_parts), "Descendants")
-        return ""
-
-
-class TaskRelation(BaseRelation["TaskPage"]):
-    Journals: Optional[Sequence["JournalPage"]]
-
-    def __repr__(self):
-        journ_parts: List[str] = []
-        if self.Journals:
-            for page in self.Journals:
-                page_text = repr(page)
-                journ_parts.append(indent(page_text, "\t"))
-
-        base_repr = super().__repr__()
-        if journ_parts:
-            journ = "\n".join(journ_parts)
-            return format_relation_heirarchy(base_repr, journ, "Journals")
-        return base_repr
-
-
-class JournalRelation(BaseRelation["JournalPage"]):
-    JunctionRelation: Optional["JunctionRelationDefinition"] = None
-    Backtrack: Optional[Sequence["JournalPage"]] = None  # Ancestors
-    Forwardtrack: Optional[Sequence["JournalPage"]] = None  # Descendants
-
-    def __repr__(self):
-        rel_parts: List[str] = []
-        if self.JunctionRelation:
-            db_text = repr(self.JunctionRelation)
-            rel_parts.append(indent(db_text, "\t"))
-        if self.Backtrack:
-            for page in self.Backtrack:
-                page_text = repr(page)
-                rel_parts.append(indent(page_text, "\t"))
-        if self.Forwardtrack:
-            for page in self.Forwardtrack:
-                page_text = repr(page)
-                rel_parts.append(indent(page_text, "\t"))
-
-        base_repr = super().__repr__()
-        if rel_parts:
-            rels = "\n".join(rel_parts)
-            return format_relation_heirarchy(base_repr, rels, "Database")
-        return base_repr
-
-
 class BasePage(BaseModel):
     Id: PageId
 
 class CommonPage(BasePage):
-    Properties: Union[TaskProperties, JournalProperties] = Field(serialization_alias='properties')
     Icon: Optional[IconProperty | ExternalEmoji | IconEmoji] = Field(serialization_alias='icon')
 
     def __repr__(self):
         icon = self.Icon.__repr__() if self.Icon else ""
-        return f"{icon} {self.Properties}"
+        return f"{icon}"
 
 
 class TaskPage(CommonPage):
-    Relations: Optional[TaskRelation] = None
+    Properties: TaskProperties = Field(serialization_alias='properties')
 
     def __repr__(self):
         # ensure every line in rels is indented one more tab for the Relations: block
-        return format_relation_heirarchy(
-            super().__repr__(), self.Relations.__repr__(), "Relations"
-        )
+        # ensure every line in rels is indented one more tab for the Relations: block
+        # if self.Properties.Relations:
+        #     return format_relation_heirarchy(
+        #         super().__repr__(), self.Relations.__repr__(), "Relations"
+        #     )
+        return super().__repr__() + self.Properties.__repr__()
 
 
 class JournalPage(CommonPage):
-    Relations: Optional[JournalRelation] = None
+    Properties: JournalProperties = Field(serialization_alias='properties')
 
     def __repr__(self):
         # ensure every line in rels is indented one more tab for the Relations: block
-        if self.Relations:
-            return format_relation_heirarchy(
-                super().__repr__(), self.Relations.__repr__(), "Relations"
-            )
-        return super().__repr__()
+        # if self.Properties.Relations:
+        #     return format_relation_heirarchy(
+        #         super().__repr__(), self.Relations.__repr__(), "Relations"
+        #     )
+        return super().__repr__() + self.Properties.__repr__()
 
 
 class PageUpdate(BaseModel):
@@ -228,6 +204,3 @@ class PaginationResult(BaseModel, Generic[C]):
     results: List[C]
     has_more: bool
     next_cursor: Union[str, None]
-
-
-RelativePages = Union["TaskRelation", "JournalRelation"]

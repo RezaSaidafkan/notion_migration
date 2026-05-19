@@ -26,27 +26,35 @@ def create_mock_page(
         type="title",
         title=[TitleItem(type="text", text=TitleText(content=title, link=None))],
     )
-    properties: TaskProperties | JournalProperties
+
     if model == TaskPage:
-        properties = TaskProperties(
-            Title=mock_title,
-            Type=None,
-            Assignee=None,
-            Priority=None,
-            Urgency=None,
-            Status=None,
-            Timeline=None,
-            Description=None,
-        )
+        return TaskPage(
+            Id=PageId(Id=page_id),
+            Icon=None,
+            Properties=TaskProperties(
+                Title=mock_title,
+                Type=None,
+                Assignee=None,
+                Priority=None,
+                Urgency=None,
+                Status=None,
+                Timeline=None,
+                Description=None)
+            )
+    elif model == JournalPage:
+        return JournalPage(
+            Id=PageId(
+                Id=page_id),
+                Icon=None,
+                Properties=JournalProperties(
+                    Title=mock_title,
+                    Type=None,
+                    Status=None,
+                    Timeline=None,
+                    Description=None)
+                )
     else:
-        properties = JournalProperties(
-            Title=mock_title,
-            Type=None,
-            Status=None,
-            Timeline=None,
-            Description=None,
-        )
-    return model(Id=PageId(Id=page_id), Icon=None, Properties=properties)
+        raise ValueError(f"Unsupported model type: {model}")
 
 
 class TestServicePage(unittest.IsolatedAsyncioTestCase):
@@ -257,9 +265,10 @@ class TestServicePage(unittest.IsolatedAsyncioTestCase):
                 await self.service.build_page_hierarchy(root_page, self.migration_context, self.execution_context)
 
                 # Assertions
-                self.assertIsNotNone(root_page.Relations)
-                self.assertEqual(root_page.Relations.Descendants, [sub_page])
-                self.assertEqual(root_page.Relations.Journals, [journal_page])
+                self.assertIsNotNone(root_page.Properties.Descendants)
+                self.assertIsNotNone(root_page.Properties.Journals)
+                self.assertEqual(root_page.Properties.Descendants.Items, [sub_page])
+                self.assertEqual(root_page.Properties.Journals.Items, [journal_page])
 
                 # Check that query_database was called for sub-pages and journal pages of root
                 mock_query.assert_has_calls(

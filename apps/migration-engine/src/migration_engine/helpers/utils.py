@@ -5,11 +5,10 @@ from common_libs.models.client_models import JournalPage, TaskPage
 
 def count_leaves(page: Union[TaskPage, JournalPage], counter: int=0) -> int:
     if (
-        page.Relations is not None
-        and page.Relations.Descendants is not None
-        and len(page.Relations.Descendants) > 0
+        page.Properties.Descendants is not None
+        and len(page.Properties.Descendants.Items) > 0
     ):
-        for desc in page.Relations.Descendants:
+        for desc in page.Properties.Descendants.Items:
             count_leaves(desc, counter)
     counter = +1
     return counter

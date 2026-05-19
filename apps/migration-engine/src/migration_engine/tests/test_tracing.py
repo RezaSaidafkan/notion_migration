@@ -3,7 +3,7 @@ import os
 import unittest
 from unittest.mock import MagicMock, patch, AsyncMock
 from uuid import uuid4
-from common_libs.models.client_models import JunctionRelationDefinition
+from common_libs.constants.literal_definitions import JunctionRelationDefinition
 
 config = {
     "notion_api_key": "some key",
