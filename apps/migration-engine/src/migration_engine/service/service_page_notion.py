@@ -278,7 +278,7 @@ class ServicePage(
             ) from re
 
 
-    async def migrate_pages(
+    async def load_pages(
         self,
         pages: List[TaskPage | JournalPage],
         migration_context: MigrationContext[BasePage, TaskPage, JournalPage, RelationDefinitions],
@@ -346,10 +346,14 @@ class ServicePage(
         execution_context: ExecutionContext,
     ) -> None:
         try:
+            # 1. Extract Stage
             # read relevant pages to the route page
-
-            logger.debug("Getting level pages for page: %s %s", str(page.Id), page.Properties.Title)
-            target_task_page, task_subpages, task_journal_pages = await self._get_level_pages(
+            if execution_context.debug:
+                logger.debug(
+                    "Getting level pages for page: %s %s",
+                    str(page.Id),
+                    page.Properties.Title)
+            target_task_page, task_subpages, task_journal_pages = await self._extract_level_pages(
                 page=page,
                 migration_context=migration_context,
                 execution_context=execution_context,
@@ -358,7 +362,7 @@ class ServicePage(
             sync_tasks: List[Awaitable[Any]] = []
 
             if task_journal_pages:
-                _update_migration_table(task_journal_pages)
+                _update_source_table(task_journal_pages)
                 self.assign_relationships(page, task_journal_pages)
 
                 sync_tasks.extend(
@@ -374,20 +378,22 @@ class ServicePage(
                         "Getting sub pages for page: %s %s",
                         str(page.Id),
                         page.Properties.Title)
-                _update_migration_table(task_subpages)
+                _update_source_table(task_subpages)
                 self.assign_relationships(page, task_subpages)
 
-                # migrate sub pages
-                logger.debug("Migrating sub pages for page: %s", str(page.Id))
-                await self.migrate_pages(
+                # 3. Load Stage
+                # load sub pages
+                if execution_context.debug:
+                    logger.debug("Migrating sub pages for page: %s", str(page.Id))
+                await self.load_pages(
                     pages=list(task_subpages),
                     migration_context=migration_context,
                     execution_context=execution_context)
 
-                # assign relations between target pages
+                # assign & load relations between target pages
                 if target_task_page:
                     sync_tasks.append(
-                        self._get_assign_relation_task(
+                        self._get_task_load_relation(
                             page=target_task_page,
                             migration_context=migration_context,
                             execution_context=execution_context,
@@ -484,7 +490,7 @@ class ServicePage(
             raise ServiceError("Failed to assign relationships.") from None
 
     @tracer
-    async def _get_level_pages(
+    async def _extract_level_pages(
         self,
         page: TaskPage | JournalPage,
         migration_context: MigrationContext[
@@ -543,8 +549,8 @@ class ServicePage(
 
             if not isinstance(target_task_page_result, BaseException):
                 target_task_page = target_task_page_result
-                TARGET_PAGES[target_task_page.Id] = target_task_page
-                MIGRATION_TABLE[page.Id] = target_task_page.Id
+                _update_target_table([target_task_page])
+                _update_migration_table([(page, target_task_page)])
             else:
                 TARGET_PAGES[page.Id] = None
         else:
@@ -571,7 +577,7 @@ class ServicePage(
         return target_task_page, task_subpages, task_journal_pages
 
     @tracer
-    def _get_assign_relation_task(
+    def _get_task_load_relation(
         self,
         page: TaskPage,
         migration_context: MigrationContext[
@@ -599,6 +605,14 @@ class ServicePage(
         )
         return target_task_page_relation_task
 
-def _update_migration_table(pages: Sequence[TaskPage | JournalPage]):
+def _update_source_table(pages: Sequence[TaskPage | JournalPage]):
     for page in pages:
         SOURCE_PAGES[page.Id] = page
+
+def _update_migration_table(pages: Sequence[Tuple[TaskPage | JournalPage, TaskPage | JournalPage]]):
+    for source_page, target_page in pages:
+        MIGRATION_TABLE[source_page.Id] = target_page.Id
+
+def _update_target_table(pages: Sequence[TaskPage | JournalPage]):
+    for page in pages:
+        TARGET_PAGES[page.Id] = page

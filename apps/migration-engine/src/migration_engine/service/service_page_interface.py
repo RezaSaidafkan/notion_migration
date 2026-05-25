@@ -105,7 +105,7 @@ class ServicePageInterface(ABC, Generic[BP, C, P_co, J_co, RD]):
         pass
 
     @abstractmethod
-    def migrate_pages(
+    def load_pages(
         self,
         pages: List[P_co | J_co],
         migration_context: MigrationContext[BP, P_co, J_co, RD],
