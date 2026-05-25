@@ -1,7 +1,7 @@
-
 import asyncio
 import logging
 from time import perf_counter
+from typing import cast
 from uuid import UUID, uuid4
 
 from common_libs.constants.literal_definitions import (
@@ -76,9 +76,14 @@ class Runner:
         2. Migrates the pages to the target datasource.
         """
         logger.info("Starting end-to-end migration for page: '%s'", source_parent_page_id)
-
+        root_page = cast(
+            TaskPage,
+            self.service.read_page(page=BasePage(Id=PageId(Id=source_parent_page_id)),
+                                    migration_context=self._migration_context,
+                                    execution_context=self._execution_context)
+        )
         await self.service.migrate_page(
-            page=BasePage(Id=PageId(Id=source_parent_page_id)),
+            page=root_page,
             migration_context=self._migration_context,
             execution_context=self._execution_context
         )

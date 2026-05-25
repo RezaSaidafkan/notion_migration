@@ -1,5 +1,5 @@
 # pylint: disable = C0103
-from typing import Dict, Generic, List, Optional, Sequence, TypeVar, Union
+from typing import Dict, Generic, List, Optional, TypeVar, Union
 from uuid import UUID
 
 from pydantic import BaseModel, model_serializer
@@ -43,13 +43,16 @@ RelativePages = Union["Ancestors", "Descendants", "ForwardTrack", "BackTrack", "
 class PageId(BaseModel):
     Id: UUID
 
+    def __hash__(self) -> int:
+        return self.Id.__hash__()
+
 
 class Relation(BaseModel):
-    Items: Sequence[TaskPage | JournalPage]
+    Items: List[TaskPage | JournalPage]
 
     @model_serializer(mode="plain")
-    def serialize_items(self) -> Dict[str, List[str] | str]:
-        return {"relation": [str(item.Id.Id) for item in self.Items],
+    def serialize_items(self) -> Dict[str, str | List[Dict[str, str]]]:
+        return {"relation": [{"id": str(item.Id.Id)} for item in self.Items],
                 "type": "relation"}
 
 
@@ -151,36 +154,6 @@ class JournalPage(CommonPage):
         #         super().__repr__(), self.Relations.__repr__(), "Relations"
         #     )
         return super().__repr__() + self.Properties.__repr__()
-
-
-class PageUpdate(BaseModel):
-    Properties: Union[TaskProperties, JournalProperties] = Field(
-        serialization_alias='properties',
-        validation_alias='properties')
-    Icon: Optional[IconProperty | ExternalEmoji | IconEmoji] = Field(
-        serialization_alias='icon',
-        validation_alias='icon',
-        default=None)
-    Cover: Optional[IconProperty | ExternalEmoji | IconEmoji] = Field(
-        serialization_alias='cover',
-        validation_alias='cover',
-        default=None)
-    InTrash: Optional[bool] = Field(
-        serialization_alias='in_trash',
-        validation_alias='in_trash',
-        default=None)
-    Archived: Optional[bool] = Field(
-        serialization_alias='archived',
-        validation_alias='archived',
-        default=None)
-    IsLocked: Optional[bool] = Field(
-        serialization_alias='is_locked',
-        validation_alias='is_locked',
-        default=None)
-    Template: Optional[bool] = Field(
-        serialization_alias='template',
-        validation_alias='template',
-        default=None)
 
 
 def indent(text: str, prefix: str = "\t") -> str:

@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from collections.abc import Coroutine
 from dataclasses import dataclass
-from typing import Any, Generic, List, Sequence, Union
+from typing import Any, Generic, List, Sequence, TypeVar, Union
 
 from common_libs.models.client_models import BP, RD, C, J_co, P_co, RelativePages
 from common_libs.models.context import (
@@ -9,6 +9,9 @@ from common_libs.models.context import (
     ExecutionContext,
     MigrationContext,
 )
+
+P = TypeVar("P")
+J = TypeVar("J")
 
 
 class ServiceError(Exception):
@@ -45,7 +48,7 @@ class ServicePageInterface(ABC, Generic[BP, C, P_co, J_co, RD]):
     @abstractmethod
     def build_page_hierarchy(
         self,
-        page: C,
+        page: P_co | J_co,
         migration_context: MigrationContext[BP, P_co, J_co, RD],
         execution_context: ExecutionContext,
         level: int = 0
@@ -55,10 +58,10 @@ class ServicePageInterface(ABC, Generic[BP, C, P_co, J_co, RD]):
     @abstractmethod
     def get_task_sub_pages(
         self,
-        page: C,
+        page: P_co | J_co,
         datasource_info: DatasourceInfo[BP, Any, RD],
+        execution_context: ExecutionContext,
         relation: RD,
-        execution_context: ExecutionContext
     ) -> Coroutine[Any, Any, Sequence[Union[P_co, J_co]]]:
         pass
 
@@ -95,16 +98,16 @@ class ServicePageInterface(ABC, Generic[BP, C, P_co, J_co, RD]):
     @abstractmethod
     def migrate_page(
         self,
-        page: BP,
+        page: P_co | J_co,
         migration_context: MigrationContext[BP, P_co, J_co, RD],
         execution_context: ExecutionContext
-        ) -> Coroutine[Any, Any, None]:
+        ) -> Coroutine[Any, Any, P_co | J_co]:
         pass
 
     @abstractmethod
     def migrate_pages(
         self,
-        pages: List[BP],
+        pages: List[P_co | J_co],
         migration_context: MigrationContext[BP, P_co, J_co, RD],
         execution_context: ExecutionContext
         ) -> Coroutine[Any, Any, None]:

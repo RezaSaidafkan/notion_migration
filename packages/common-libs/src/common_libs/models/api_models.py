@@ -220,24 +220,45 @@ class UrlProperty(BaseModel):
     url: Optional[str]
 
 
-class ApiPageProperties(BaseModel):
-    # Required per user's request
+class ParentProperty(BaseModel):
+    type: Literal["data_source_id"]
+    data_source_id: UUID
+
+
+class ApiBasePageProperties(BaseModel):
     Title: TitleProperty
     Type: SelectProperty
     Status: StatusProperty | SelectProperty  # This was already correct
     Timeline: TimelineProperty
+    Description: RichTextProperty | None = None
 
-    # Other fields (optional)
-    Assignee: Optional[PeopleProperty] = None
-    Priority: Optional[SelectProperty] = None
-    Urgency: Optional[SelectProperty] = None
-    Description: Optional[RichTextProperty] = None
-    Ancestors: Optional[RelationProperty] = None
-    Descendants: Optional[RelationProperty] = None
-    Journals: Optional[RelationProperty] = None
+
+class ApiTaskPageProperties(ApiBasePageProperties):
+    Assignee: PeopleProperty | None = None
+    Priority: SelectProperty | None = None
+    Urgency: SelectProperty | None = None
+    Ancestors: RelationProperty | None = None
+    Descendants: RelationProperty | None = None
+    Journals: RelationProperty | None = None
+
+
+class ApiJournalPageProperties(ApiBasePageProperties):
+    Ancestors: RelationProperty | None = None
+    Descendants: RelationProperty | None = None
 
 
 class ApiPage(BaseModel):
     id: UUID
     icon: Optional[IconProperty | ExternalEmoji | IconEmoji]
-    properties: ApiPageProperties
+    created_time: datetime
+    last_edited_time: datetime
+    parent: ParentProperty
+    archived: bool
+
+
+class ApiJournalPage(ApiPage):
+    properties: ApiJournalPageProperties
+
+
+class ApiTaskPage(ApiPage):
+    properties: ApiTaskPageProperties

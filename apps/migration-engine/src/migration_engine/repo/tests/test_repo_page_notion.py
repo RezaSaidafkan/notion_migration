@@ -1,13 +1,12 @@
 # pylint: disable=all
 import unittest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 from uuid import UUID
-from typing import Dict, Any
 
-from common_libs.models.api_models import ApiPage
+from common_libs.models.api_models import ApiTaskPage
 from common_libs.models.client_models import (PageId,
                                               BasePage,
-                                              JournalPage, JournalProperties, PageUpdate,
+                                              JournalPage, JournalProperties,
                                               TaskPage, TaskProperties,
                                               PaginationResult)
 from common_libs.models.context import ExecutionContext
@@ -15,100 +14,7 @@ from common_libs.constants.literal_definitions import TaskRelationsDefinition
 from migration_engine.repo.repo_page_notion import (ClientSingleton,
                                                     NotionRepoJournal,
                                                     NotionRepoSource)
-from pydantic_core import ValidationError
-
-
-def create_mock_api_page(page: BasePage, title: str) -> Dict[str, Any]:
-    """Helper function to create a mock raw API page dictionary."""
-    return {
-        "object": "page",
-        "id": page.Id.Id,
-        "created_time": "2022-01-01T00:00:00.000Z",
-        "last_edited_time": "2022-01-01T00:00:00.000Z",
-        "parent": {"type": "data_source_id", "data_source_id": "db_id"},
-        "archived": False,
-        "icon": None,
-        "properties": {
-            "Title": {
-                "id": "title_id",
-                "type": "title",
-                "title": [
-                    {
-                        "type": "text",
-                        "text": {
-                            "content": title,
-                            "link": None},
-                        "plain_text": title,
-                    }
-                ],
-            },
-            "Type": {
-                "id": "type_id",
-                "type": "select",
-                "select": {"id": "select_id", "name": "Task", "color": "blue"},
-            },
-            "Status": {
-                "id": "status_id",
-                "type": "status",
-                "status": {
-                    "id": "status_opt_id",
-                    "name": "In Progress",
-                    "color": "yellow",
-                },
-            },
-            "Timeline": {
-                "id": "date_id",
-                "type": "date",
-                "date": {"start": "2023-01-01", "end": None, "time_zone": None},
-            },
-            "Assignee": None,
-            "Priority": None,
-            "Urgency": None,
-            "Description": None,
-            "Ancestors": None,
-            "Descendants": None,
-            "Journals": None,
-        },
-    }
-
-def create_mock_api_update() -> Dict[str, Any]:
-    return {
-        "properties": {
-            "Title": {
-                    "id": "title_id",
-                    "type": "title",
-                    "title": [
-                        {
-                            "type": "text",
-                            "text": {
-                                "content": "Updated Title",
-                                "link": None
-                            }
-                         }
-                    ],
-            },
-            "Status": {
-                "id": "status_id",
-                "type": "status",
-                "status": {
-                    "name": "Completed"
-                }
-            }
-        },
-        "icon": {
-            "type": "emoji",
-            "emoji": "🎉",
-        },
-        "cover": {
-            "type": "external",
-            "external": {
-                "url": "https://example.com/cover.png"
-            }
-        },
-        "archived": False,
-        "is_locked": False,
-        "in_trash": False,
-    }
+from migration_engine.repo.tests.utils import create_mock_api_task_page, create_mock_api_journal_page, create_mock_api_journal_update
 
 
 class TestNotionRepoTaskPage(unittest.IsolatedAsyncioTestCase):
@@ -126,8 +32,8 @@ class TestNotionRepoTaskPage(unittest.IsolatedAsyncioTestCase):
 
     async def test_read_page(self):
         page = BasePage(Id=PageId(Id=UUID('{12345678-1234-5678-1234-567812345678}')))
-        mock_raw_page = create_mock_api_page(page, "Test Page")
-        self.mock_notion_client.pages.retrieve.return_value = mock_raw_page
+        mock_raw_page = create_mock_api_task_page(page, "Test Page")
+        self.mock_notion_client.pages.retrieve.return_value = mock_raw_page.model_dump(mode="json")
 
         result = await self.repo.read_page(page)
 
@@ -139,11 +45,11 @@ class TestNotionRepoTaskPage(unittest.IsolatedAsyncioTestCase):
     def test_convert_client_page(self):
         # Arrange
         page = BasePage(Id=PageId(Id=UUID('{12345678-1234-5678-1234-567812345678}')))
-        raw_page_dict = create_mock_api_page(page, "Test Page")
-        api_page = ApiPage.model_validate(raw_page_dict)
+        raw_page_dict = create_mock_api_task_page(page, "Test Page")
+        api_page = ApiTaskPage.model_validate(raw_page_dict)
 
         # Act
-        client_page = self.repo.convert_client_page(api_page)
+        client_page = self.repo.convert_client_page(api_page.model_dump(mode="json", by_alias=True, exclude_unset=True))
 
         # Assert
         self.assertIsInstance(client_page, TaskPage)
@@ -159,10 +65,10 @@ class TestNotionRepoTaskPage(unittest.IsolatedAsyncioTestCase):
         page = BasePage(Id=PageId(Id=UUID("12345678-1234-5678-1234-567812345678")))
         mock_response = {
             "results": [
-                create_mock_api_page(
+                create_mock_api_task_page(
                     page,
                     "Page One"
-                    )],
+                    ).model_dump(mode="json"),],
             "has_more": False,
             "next_cursor": None,
         }
@@ -210,21 +116,21 @@ class TestNotionRepoTaskPage(unittest.IsolatedAsyncioTestCase):
         
         mock_response_1 = {
             "results": [
-                create_mock_api_page(
+                create_mock_api_task_page(
                      page_1,
-                     "Page One"),
-                create_mock_api_page(
+                     "Page One").model_dump(mode="json"),
+                create_mock_api_task_page(
                      page_2,
-                     "Page Two"),
+                     "Page Two").model_dump(mode="json"),
             ],
             "has_more": True,
             "next_cursor": "cursor123",
         }
         mock_response_2 = {
             "results": [
-                create_mock_api_page(
+                create_mock_api_task_page(
                  page_3, 
-                 "Page Three")],
+                 "Page Three").model_dump(mode="json"),],
             "has_more": False,
             "next_cursor": None,
         }
@@ -263,46 +169,65 @@ class TestNotionRepoTaskPage(unittest.IsolatedAsyncioTestCase):
 
     async def test_create_page_task(self):
         # Arrange
-        mock_api_page = create_mock_api_page(BasePage(Id=PageId(Id=UUID('{12345678-1234-5678-1234-567812345678}'))), "MockPage")
-        mock_task_page = self.repo.convert_client_page(ApiPage.model_validate(mock_api_page))
+        # creating Mock ApiTaskPage
+        base_page, page_name, _ = BasePage(Id=PageId(Id=UUID('{12345678-1234-5678-1234-567812345678}'))), "MockJournalPage", "MockJournalPageUpdated"
+        mock_api_task_page = create_mock_api_task_page(base_page, page_name)
+        mock_api_task_dict = mock_api_task_page.model_dump(mode="json", by_alias=True, exclude_unset=True)
+        
+        # creating Mock Journal Page
+        mock_journal_page = self.repo.convert_client_page(mock_api_task_dict)
+        
         execution_id = UUID('{02345678-1234-5678-1234-567812345678}')
         execution_context = ExecutionContext(debug=True, page_size=1, execution_id=execution_id)
+        
         parent_page_id = UUID('{12345678-1234-5678-1234-567812345678}')
         
+        self.mock_notion_client.pages.create.return_value = mock_api_task_dict
+        
+        expected_dict = mock_journal_page.model_dump(mode="json", by_alias=True, exclude={"Id"}, exclude_unset=True)
+        del expected_dict["properties"]["Assignee"]
+        
         # Act
-        await self.repo.create_page(page=mock_task_page, execution_context=execution_context, parent_page_id=parent_page_id, debug=False)
+        await self.repo.create_page(
+            page=mock_journal_page,
+            execution_context=execution_context,
+            parent_page_id=parent_page_id,
+        )
         
         # Assert
         self.mock_notion_client.pages.create.assert_awaited_once_with(
             parent={"data_source_id": str(parent_page_id)},
-            **mock_task_page.model_dump(mode="json", by_alias=True, exclude={"Id"})
+            **expected_dict
         )
-
 
     async def test_update_page(self):
         # Arrange
-        mock_api_page = create_mock_api_page(BasePage(Id=PageId(Id=UUID('{12345678-1234-5678-1234-567812345678}'))), "MockPage")
-        mock_task_page = self.repo.convert_client_page(ApiPage.model_validate(mock_api_page))
+        base_page, page_name, updated_page_name = BasePage(Id=PageId(Id=UUID('{12345678-1234-5678-1234-567812345678}'))), "MockPage", "MockPageUpdated"
+        mock_api_task_page = create_mock_api_task_page(base_page, page_name)
+        mock_task_page = self.repo.convert_client_page(mock_api_task_page.model_dump(mode="json", by_alias=True, exclude_unset=True))
+        
         execution_id = UUID('{02345678-1234-5678-1234-567812345678}')
         execution_context = ExecutionContext(debug=True, page_size=1, execution_id=execution_id)
+        
         parent_page_id = UUID('{12345678-1234-5678-1234-567812345678}')
         
-        mock_api_update_properties = create_mock_api_update()
-        mock_client_update_properties=PageUpdate.model_validate(mock_api_update_properties, by_alias=True)
+        mock_task_api_updated = create_mock_api_journal_update(base_page, updated_page_name)
+        mock_task_page_updated = self.repo.convert_client_page(mock_task_api_updated.model_dump(mode="json", by_alias=True, exclude_unset=True))
+        
+        expected_dict = mock_task_page_updated.model_dump(mode="json", by_alias=True, exclude={"Id"}, exclude_unset=True)
         
         # Act
         await self.repo.update_page(
-            page=mock_task_page,
+            page=mock_task_page_updated,
             execution_context=execution_context,
-            parent_page=parent_page_id,
-            update_properties=mock_client_update_properties,
-            debug=False
+            parent_page_id=parent_page_id,
         )
         
         # Assert
+        del expected_dict["properties"]["Assignee"]
         self.mock_notion_client.pages.update.assert_awaited_once_with(
             page_id=str(mock_task_page.Id.Id),
-            **mock_client_update_properties.model_dump(mode="json", by_alias=True, exclude={"Id"})
+            **expected_dict,            
         )
 
 
@@ -330,8 +255,8 @@ class TestNotionRepoJournalPage(unittest.IsolatedAsyncioTestCase):
 
     async def test_read_page(self):
         page = BasePage(Id=PageId(Id=UUID('{12345678-1234-5678-1234-567812345678}')))
-        mock_raw_page = create_mock_api_page(page, "Test Journal Page")
-        self.mock_notion_client.pages.retrieve.return_value = mock_raw_page
+        mock_raw_page = create_mock_api_task_page(page, "Test Journal Page")
+        self.mock_notion_client.pages.retrieve.return_value = mock_raw_page.model_dump(mode="json")
 
         result = await self.repo.read_page(page)
 
@@ -344,28 +269,42 @@ class TestNotionRepoJournalPage(unittest.IsolatedAsyncioTestCase):
         
     async def test_create_page_journal(self):
         # Arrange
-        mock_api_page = create_mock_api_page(BasePage(Id=PageId(Id=UUID('{12345678-1234-5678-1234-567812345678}'))), "MockPage")
-        mock_task_page = self.repo.convert_client_page(ApiPage.model_validate(mock_api_page))
+        # creating Mock Journal ApiPage
+        base_page, page_name, _ = BasePage(Id=PageId(Id=UUID('{12345678-1234-5678-1234-567812345678}'))), "MockJournalPage", "MockJournalPageUpdated"
+        mock_api_journal_page = create_mock_api_journal_page(base_page, page_name)
+        mock_api_journal_dict = mock_api_journal_page.model_dump(mode="json", by_alias=True, exclude_unset=True)
+        
+        # creating Mock Journal Page
+        mock_journal_page = self.repo.convert_client_page(mock_api_journal_dict)
+        
         execution_id = UUID('{02345678-1234-5678-1234-567812345678}')
         execution_context = ExecutionContext(debug=True, page_size=1, execution_id=execution_id)
+        
         parent_page_id = UUID('{12345678-1234-5678-1234-567812345678}')
         
+        self.mock_notion_client.pages.create.return_value = mock_api_journal_dict
+        
+        expected_dict = mock_journal_page.model_dump(mode="json", by_alias=True, exclude={"Id"}, exclude_unset=True)
+        
         # Act
-        await self.repo.create_page(page=mock_task_page, execution_context=execution_context, parent_page_id=parent_page_id, debug=False)
+        await self.repo.create_page(
+            page=mock_journal_page,
+            execution_context=execution_context,
+            parent_page_id=parent_page_id,
+        )
         
         # Assert
         self.mock_notion_client.pages.create.assert_awaited_once_with(
             parent={"data_source_id": str(parent_page_id)},
-            **mock_task_page.model_dump(mode="json", by_alias=True, exclude={"Id"})
+            **expected_dict
         )
-
 
     def test_convert_client_page(self):
         page = BasePage(Id=PageId(Id=UUID('{12345678-1234-5678-1234-567812345678}')))
-        raw_page_dict = create_mock_api_page(page, "Test Journal Page")
-        api_page = ApiPage.model_validate(raw_page_dict)
+        api_journal_page = create_mock_api_journal_page(page, "Test Journal Page")
+        api_journal_page_dict = api_journal_page.model_dump(mode="jsone")
 
-        client_page = self.repo.convert_client_page(api_page)
+        client_page = self.repo.convert_client_page(api_journal_page_dict)
 
         self.assertIsInstance(client_page, JournalPage)
         self.assertEqual(client_page.Id.Id, page.Id.Id)

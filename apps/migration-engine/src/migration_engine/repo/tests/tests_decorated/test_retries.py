@@ -3,17 +3,20 @@ import os
 import unittest
 from functools import reduce
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import uuid4
-
+from unittest.mock import AsyncMock, patch
+from uuid import uuid4, UUID
+from common_libs.models.client_models import BasePage, PageId
 from common_libs.constants.literal_definitions import JunctionRelationDefinition
 from httpx import Response
 from notion_client.errors import APIErrorCode, APIResponseError, RequestTimeoutError
+
+from migration_engine.repo.tests.utils import create_mock_api_task_page, create_mock_api_journal_page, create_mock_api_journal_update
 
 tests_dir_path = Path().cwd().joinpath(
     "apps/migration-engine/src/migration_engine/repo/tests/tests_decorated/")
 response_root_file_path = tests_dir_path.joinpath("response_root.json")
 
+RATE_LIMITED_ERROR_CODE = 429
 MOCKED_RETRY_TIMEOUT_FALLBACK = 0.01
 MOCKED_ATTEMPT_TRIAL_NUMBER = 3
 
@@ -52,15 +55,15 @@ env_vars_for_test = {
 class TestRetries(unittest.IsolatedAsyncioTestCase):
     @patch.dict(os.environ, env_vars_for_test)
     @patch("migration_engine.repo.repo_page_notion.Client")
-    async def test_retry_rate_limited_api_response_error(self, mocked_async_client: MagicMock):
+    async def test_retry_rate_limited_api_response_error(self, mocked_async_client: AsyncMock):
         # Arrange
         # mocking await self.notion.data_sources.query(data_source_id, **query)
         ## mocking erroneous responses
         mocked_response = AsyncMock(
                 name="mocked_response",
                 spec=Response)
-        mocked_response.headers = {"Retry-After": 0.01}
-        mocked_response.status_code = 429
+        mocked_response.headers = {"Retry-After": MOCKED_RETRY_TIMEOUT_FALLBACK}
+        mocked_response.status_code = RATE_LIMITED_ERROR_CODE
         errors_list = [
                 APIResponseError(
                 code=APIErrorCode.RateLimited,
@@ -73,12 +76,20 @@ class TestRetries(unittest.IsolatedAsyncioTestCase):
             name="async_mocked_query",
             side_effect=errors_list)
 
+        # mocking await self.notion.pages.retrieve(data_source_id)
         with open(response_root_file_path, "rb") as retrieve_file:
             response_root = json.load(retrieve_file)
 
         mocked_async_client_instance.pages.retrieve = AsyncMock(
             name="mocked_retrieve",
             return_value = response_root)
+        
+        # mocking self.notion.pages.create()
+        base_page, page_name = BasePage(Id=PageId(Id=UUID('{12345678-1234-5678-1234-567812345678}'))), "MockJournalPage"
+        mocked_async_client_instance.pages.create = AsyncMock(
+            name="mocked_create",
+            return_value=create_mock_api_task_page(base_page, page_name).model_dump(mode="json"))
+
 
         with patch("migration_engine.repo.repo_page_notion.RETRY_TIMEOUT_FALLBACK", MOCKED_RETRY_TIMEOUT_FALLBACK),\
             patch("migration_engine.repo.repo_page_notion.ATTEMPT_TRIAL_NUMBER", MOCKED_ATTEMPT_TRIAL_NUMBER),\
@@ -105,7 +116,7 @@ class TestRetries(unittest.IsolatedAsyncioTestCase):
 
     @patch.dict(os.environ, env_vars_for_test)
     @patch("migration_engine.repo.repo_page_notion.Client")
-    async def test_retry_rate_limited_request_timeout_error(self, mocked_async_client: MagicMock):
+    async def test_retry_rate_limited_request_timeout_error(self, mocked_async_client: AsyncMock):
         # Arrange
         # mocking await self.notion.data_sources.query(data_source_id, **query)
         ## mocking erroneous responses
@@ -126,6 +137,12 @@ class TestRetries(unittest.IsolatedAsyncioTestCase):
         mocked_async_client_instance.pages.retrieve = AsyncMock(
             name="mocked_retrieve",
             return_value = response_root)
+        
+        # mocking self.notion.pages.create()
+        base_page, page_name = BasePage(Id=PageId(Id=UUID('{12345678-1234-5678-1234-567812345678}'))), "MockJournalPage"
+        mocked_async_client_instance.pages.create = AsyncMock(
+            name="mocked_create",
+            return_value=create_mock_api_task_page(base_page, page_name).model_dump(mode="json"))
 
         with patch("migration_engine.repo.repo_page_notion.RETRY_TIMEOUT_FALLBACK", MOCKED_RETRY_TIMEOUT_FALLBACK),\
             patch("migration_engine.repo.repo_page_notion.ATTEMPT_TRIAL_NUMBER", MOCKED_ATTEMPT_TRIAL_NUMBER),\
@@ -150,7 +167,7 @@ class TestRetries(unittest.IsolatedAsyncioTestCase):
 
     @patch.dict(os.environ, env_vars_for_test)
     @patch("migration_engine.repo.repo_page_notion.Client")
-    async def test_retry_both_errors(self, mocked_async_client: MagicMock):
+    async def test_retry_both_errors(self, mocked_async_client: AsyncMock):
         # Arrange
         # mocking await self.notion.data_sources.query(data_source_id, **query)
         ## mocking erroneous responses
@@ -158,8 +175,8 @@ class TestRetries(unittest.IsolatedAsyncioTestCase):
         mocked_response = AsyncMock(
                 name="mocked_response",
                 spec=Response)
-        mocked_response.headers = {"Retry-After": 0.01}
-        mocked_response.status_code = 429
+        mocked_response.headers = {"Retry-After": MOCKED_RETRY_TIMEOUT_FALLBACK}
+        mocked_response.status_code = RATE_LIMITED_ERROR_CODE
         errors_list = [
                 APIResponseError(
                     code=APIErrorCode.RateLimited,
@@ -171,19 +188,26 @@ class TestRetries(unittest.IsolatedAsyncioTestCase):
                 ]
 
         mocked_async_client_instance = mocked_async_client.return_value
+        
+        # mocking client query method
         mocked_async_client_instance.data_sources.query = AsyncMock(
             name="async_mocked_query",
             side_effect=errors_list)
 
-        # mocking RETRY_TIMEOUT_FALLBACK
 
+        # mocking await self.notion.pages.retrieve(data_source_id)
         with open(response_root_file_path, "rb") as retrieve_file:
             response_root = json.load(retrieve_file)
 
-        # mocking await self.notion.pages.retrieve(data_source_id)
         mocked_async_client_instance.pages.retrieve = AsyncMock(
             name="mocked_retrieve",
             return_value = response_root)
+        
+        # mocking self.notion.pages.create()
+        base_page, page_name = BasePage(Id=PageId(Id=UUID('{12345678-1234-5678-1234-567812345678}'))), "MockJournalPage"
+        mocked_async_client_instance.pages.create = AsyncMock(
+            name="mocked_create",
+            return_value=create_mock_api_task_page(base_page, page_name).model_dump(mode="json"))
 
         with patch("migration_engine.repo.repo_page_notion.RETRY_TIMEOUT_FALLBACK", MOCKED_RETRY_TIMEOUT_FALLBACK),\
             patch("migration_engine.repo.repo_page_notion.ATTEMPT_TRIAL_NUMBER", MOCKED_ATTEMPT_TRIAL_NUMBER),\
@@ -193,8 +217,10 @@ class TestRetries(unittest.IsolatedAsyncioTestCase):
                 
             tracing_instance = mocked_tracing.return_value
 
-            # Act & Assert
+            # Act
             await build_page_hierarchy()
+
+            # Assert
             path = ["trace", "outcome", "failure"]
             results = [
                 reduce(lambda d, key: d.get(key, {}) if isinstance(d, dict) else None,

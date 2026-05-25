@@ -4,18 +4,27 @@ from asyncio import Event
 from dataclasses import dataclass
 from functools import wraps
 from logging import Logger
-from typing import Any, Callable, Concatenate, Coroutine, Generic, List, Optional, cast
+from typing import (
+    Any,
+    Callable,
+    Concatenate,
+    Coroutine,
+    Dict,
+    Generic,
+    List,
+    Optional,
+    cast,
+)
 from uuid import UUID
 
 from common_libs.constants.literal_definitions import RelationDefinitions
-from common_libs.models.api_models import ApiPage
+from common_libs.models.api_models import ApiJournalPage, ApiTaskPage
 from common_libs.models.client_models import (
     BasePage,
     C,
     JournalPage,
     JournalProperties,
     PageId,
-    PageUpdate,
     PaginationResult,
     TaskPage,
     TaskProperties,
@@ -148,6 +157,8 @@ def set_on_exhausted(retry_state: RetryCallState):
     global ACTIVE_CALL_ID  # noqa: PLW0603, pylint: disable=global-statement
     ACTIVE_CALL_ID = None
     logger.debug("Retry loop exhausted, EVENT is 'Set'")
+    raise RuntimeError("Retry loop exhausted")
+
 
 def synchronization_gating[T, R, **P](
     coro: Callable[Concatenate[T, P], Coroutine[Any, Any, R]]
@@ -209,29 +220,8 @@ class ClientSingleton:
 
 class NotionRepository(
     Generic[C], RepositoryInterface[BasePage, C, RelationDefinitions], ClientSingleton):
-    # pylint: disable=invalid-overridden-method
-    async def read_page(self, page: BasePage, debug: bool=False) -> C:
-        try:
-            raw_result = await self.notion.pages.retrieve(page_id=str(page.Id.Id))
-            api_page = ApiPage(**raw_result)
-            page = self.convert_client_page(api_page)
-            return page
-        except APIResponseError as api_e:
-            raise RepositoryError(
-                error_type=type(api_e),
-                message=f"Failed to retrieve page {page}"
-                ) from api_e
-        except ValidationError as ve:
-            raise RepositoryError(
-                error_type=type(ve),
-                message=f"Failed to validate response with the model for page {page}"
-                ) from ve
-        except Exception as e:
-            raise RepositoryError(
-                error_type=type(e)) from None
-
     @abstractmethod
-    def convert_client_page(self, result: ApiPage) -> C:
+    def convert_client_page(self, result: Dict[str, Any]) -> C:
         pass
 
     # pylint: disable=too-many-positional-arguments, too-many-arguments, too-many-locals
@@ -243,6 +233,7 @@ class NotionRepository(
         retry=retry_if_not_exception_type(
             (RequestTimeoutError, HTTPResponseError, APIResponseError)),
         retry_error_callback=set_on_exhausted,
+        stop=stop_after_attempt_dynamic(),
         )
     @retry(
         reraise=True,
@@ -276,9 +267,8 @@ class NotionRepository(
 
         response = await self.notion.data_sources.query(str(data_source_id), **query)
 
-        results = [ApiPage(**result) for result in response["results"]]
         converted_results: List[C] = [
-            self.convert_client_page(apiPage) for apiPage in results
+            self.convert_client_page(result) for result in response["results"]
         ]
 
         result = PaginationResult[C](
@@ -305,61 +295,6 @@ class NotionRepository(
             relation=relation,
             cursor=cursor)
 
-    @tracer
-    async def create_page(
-        self,
-        page: C,
-        execution_context: ExecutionContext,
-        parent_page_id: UUID,
-        debug: bool) -> bool:
-        return await self._create_page(
-            page=page,
-            execution_context=execution_context,
-            parent_page_id=parent_page_id,
-            debug=debug)
-
-    # pylint: disable=too-many-positional-arguments, too-many-arguments, too-many-locals
-    # pylint: disable=unused-argument, global-statement
-    @error_handling
-    @rate_limited
-    @retry(
-        reraise=True,
-        retry=retry_if_not_exception_type(
-            (RequestTimeoutError, HTTPResponseError, APIResponseError)),
-        retry_error_callback=set_on_exhausted,
-        )
-    @retry(
-        reraise=True,
-        retry=retry_if_exception_type(
-            (RequestTimeoutError, HTTPResponseError, APIResponseError)),
-        wait=wait_error_callback(),
-        before_sleep=before_sleep_log(logger, logging.DEBUG),
-        retry_error_callback=set_on_exhausted,
-        stop=stop_after_attempt_dynamic(),
-        )
-    @tracer
-    @synchronization_gating
-    async def _create_page(
-        self,
-        page: C,
-        execution_context: ExecutionContext,
-        parent_page_id: UUID,
-        debug: bool
-        ) -> bool:
-        from pprint import pprint;
-        pprint(page.model_dump(mode="json", by_alias=True, exclude={"Id"}, exclude_none=True))
-        result = await self.notion.pages.create(
-            **{
-                "parent": {
-                    "data_source_id": str(parent_page_id)
-                },
-                },
-            **page.model_dump(mode="json", by_alias=True, exclude={"Id"}, exclude_none=True)
-            )
-        if debug:
-            logger.debug("Page created: %s", result)
-        return True
-
     # pylint: disable=too-many-positional-arguments, too-many-arguments, too-many-locals
     # pylint: disable=unused-argument, global-statement
     @error_handling
@@ -385,9 +320,7 @@ class NotionRepository(
         self,
         page: C,
         execution_context: ExecutionContext,
-        parent_page: UUID,
-        update_properties: PageUpdate,
-        debug: bool
+        parent_page_id: Optional[UUID] = None,
     ) -> bool:
         # constrain the PageUpdate.Properties to parent_page:
         # Datasource (the type is not implemented yet)
@@ -397,45 +330,136 @@ class NotionRepository(
         return await self._update_page(
             page=page,
             execution_context=execution_context,
-            parent_page=parent_page,
-            update_properties=update_properties,
-            debug=debug)
+            parent_page_id=parent_page_id,
+            )
 
     @tracer
     async def _update_page(
         self,
         page: C,
         execution_context: ExecutionContext,
-        parent_page: UUID,
-        update_properties: PageUpdate,
-        debug: bool
+        parent_page_id: Optional[UUID] = None,
     ) -> bool:
+        payload = page.model_dump(
+            mode="json",
+            by_alias=True,
+            exclude={
+                "Id": True,
+                "properties": {"Assignee": True}
+                },
+            exclude_unset=True)
+        del payload["properties"]["Assignee"]
         result = await self.notion.pages.update(
             page_id=str(page.Id.Id),
-            **update_properties.model_dump(mode="json", by_alias=True, exclude={"Id"})
+            **payload
             )
-        if debug:
+        if execution_context.debug:
             logger.debug("Page updated: '%s'", result)
         return True
 
+    @tracer
+    async def create_page(
+        self,
+        page: C,
+        execution_context: ExecutionContext,
+        parent_page_id: UUID
+    ) -> C:
+        result = await self._create_page(
+            page=page,
+            execution_context=execution_context,
+            parent_page_id=parent_page_id)
+        return result
+
+    # pylint: disable=too-many-positional-arguments, too-many-arguments, too-many-locals
+    # pylint: disable=unused-argument, global-statement
+    @retry(
+        reraise=True,
+        retry=retry_if_not_exception_type(
+            (RequestTimeoutError, HTTPResponseError, APIResponseError, RuntimeError)),
+        retry_error_callback=set_on_exhausted,
+        stop=stop_after_attempt_dynamic(),
+        )
+    @retry(
+        reraise=True,
+        retry=retry_if_exception_type(
+            (RequestTimeoutError, HTTPResponseError, APIResponseError)),
+        wait=wait_error_callback(),
+        before_sleep=before_sleep_log(logger, logging.DEBUG),
+        retry_error_callback=set_on_exhausted,
+        stop=stop_after_attempt_dynamic(),
+        )
+    @tracer
+    @synchronization_gating
+    async def _create_page(
+        self,
+        page: C,
+        execution_context: ExecutionContext,
+        parent_page_id: UUID
+    ) -> C:
+        payload = page.model_dump(
+            mode="json",
+            by_alias=True,
+            exclude={
+                "Id": True,
+                "properties": {"Assignee": True}
+                },
+            exclude_unset=True)
+        if "Assignee" in payload["properties"]:
+            del payload["properties"]["Assignee"]
+
+        result = await self.notion.pages.create(
+            **{
+                "parent": {
+                    "data_source_id": str(parent_page_id)
+                    },
+                },
+            **payload
+            )
+        page_created = self.convert_client_page(result)
+        if execution_context.debug:
+            logger.debug("Page created: %s", page_created)
+        return page_created
+
 
 class NotionRepoSource(NotionRepository[TaskPage]):
-    def convert_client_page(self, result: ApiPage) -> TaskPage:
+    # pylint: disable=invalid-overridden-method
+    async def read_page(self, page: BasePage, debug: bool=False) -> TaskPage:
         try:
-            props = result.properties
+            raw_result = await self.notion.pages.retrieve(page_id=str(page.Id.Id))
+            return self.convert_client_page(raw_result)
+        except APIResponseError as api_e:
+            raise RepositoryError(
+                error_type=type(api_e),
+                message=f"Failed to retrieve page {page}"
+                ) from api_e
+        except ValidationError as ve:
+            raise RepositoryError(
+                error_type=type(ve),
+                message=f"Failed to validate response with the model for page {page}"
+                ) from ve
+        except Exception as e:
+            raise RepositoryError(
+                error_type=type(e),
+                message=str(e),
+                ) from None
+
+
+    def convert_client_page(self, result: Dict[str, Any]) -> TaskPage:
+        try:
+            api_task_page = ApiTaskPage(**result)
             # Build client-facing properties using the typed dataclasses
             client_props = TaskProperties(
-                Type=props.Type,
-                Title=props.Title,
-                Assignee=props.Assignee,
-                Priority=props.Priority,
-                Urgency=props.Urgency,
-                Status=props.Status,
-                Timeline=props.Timeline,
-                Description=props.Description,
+                Type=api_task_page.properties.Type,
+                Title=api_task_page.properties.Title,
+                Assignee=api_task_page.properties.Assignee,
+                Priority=api_task_page.properties.Priority,
+                Urgency=api_task_page.properties.Urgency,
+                Status=api_task_page.properties.Status,
+                Timeline=api_task_page.properties.Timeline,
+                Description=api_task_page.properties.Description,
             )
             return TaskPage(
-                Id=PageId(Id=result.id), Icon=result.icon, Properties=client_props
+                Id=PageId(Id=api_task_page.id), Icon=api_task_page.icon, Properties=client_props
             )
         except ValidationError as e:
             raise RepositoryError(
@@ -444,20 +468,40 @@ class NotionRepoSource(NotionRepository[TaskPage]):
 
 
 class NotionRepoJournal(NotionRepository[JournalPage]):
-    def convert_client_page(self, result: ApiPage) -> JournalPage:
+    # pylint: disable=invalid-overridden-method
+    async def read_page(self, page: BasePage, debug: bool=False) -> JournalPage:
         try:
-            props = result.properties
+            raw_result = await self.notion.pages.retrieve(page_id=str(page.Id.Id))
+            return self.convert_client_page(raw_result)
+        except APIResponseError as api_e:
+            raise RepositoryError(
+                error_type=type(api_e),
+                message=f"Failed to retrieve page {page}"
+                ) from api_e
+        except ValidationError as ve:
+            raise RepositoryError(
+                error_type=type(ve),
+                message=f"Failed to validate response with the model for page {page}"
+                ) from ve
+        except Exception as e:
+            raise RepositoryError(
+                error_type=type(e)) from None
 
+    def convert_client_page(self, result: Dict[str, Any]) -> JournalPage:
+        try:
+            api_journal_page = ApiJournalPage(**result)
             # Build client-facing properties using the typed dataclasses
             client_props = JournalProperties(
-                Type=props.Type,
-                Title=props.Title,
-                Status=props.Status,
-                Timeline=props.Timeline,
-                Description=props.Description,
+                Type=api_journal_page.properties.Type,
+                Title=api_journal_page.properties.Title,
+                Status=api_journal_page.properties.Status,
+                Timeline=api_journal_page.properties.Timeline,
+                Description=api_journal_page.properties.Description,
             )
             return JournalPage(
-                Id=PageId(Id=result.id), Icon=result.icon, Properties=client_props
+                Id=PageId(Id=api_journal_page.id),
+                Icon=api_journal_page.icon,
+                Properties=client_props
             )
         except ValidationError as e:
             raise RepositoryError(
