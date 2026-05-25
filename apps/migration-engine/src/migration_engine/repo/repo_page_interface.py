@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from collections.abc import Coroutine
 from typing import Any, Dict, Generic, List, Optional
 from uuid import UUID
 
@@ -43,8 +42,8 @@ class RepositoryError(Exception):
 
 class RepositoryInterface(Generic[BP, C, RD], ABC):
     @abstractmethod
-    def read_page(self, page: BP, debug: bool = False
-    ) -> Coroutine[Any, Any, C]:
+    async def read_page(self, page: BP, execution_context: ExecutionContext
+    ) -> C:
         pass
 
     # pylint: disable=too-many-positional-arguments, too-many-arguments

@@ -74,7 +74,7 @@ class ServicePage(
             RelationDefinitions]) -> TaskPage:
         try:
             retrieved_page = await migration_context.\
-                source_datasource_info.repo.read_page(page)
+                source_datasource_info.repo.read_page(page, execution_context)
             return TaskPage(
                     Id=page.Id,
                     Icon=retrieved_page.Icon,

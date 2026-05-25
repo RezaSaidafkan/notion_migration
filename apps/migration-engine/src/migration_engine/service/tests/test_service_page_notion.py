@@ -97,12 +97,14 @@ class TestServicePage(unittest.IsolatedAsyncioTestCase):
         page = BasePage(Id=PageId(Id=UUID('{22345678-1234-5678-1234-567812345678}')))
         mock_page = create_mock_page(page.Id.Id, "Test Page")
         self.migration_context.source_datasource_info.repo.read_page.return_value = mock_page
+        execution_id = UUID('{02345678-1234-5678-1234-567812345678}')
+        expected_execution_context = ExecutionContext(debug=True, page_size=10, execution_id=execution_id)
 
         # Act
         result = await self.service.read_page(page, self.execution_context, self.migration_context)
 
         # Assert
-        self.migration_context.source_datasource_info.repo.read_page.assert_awaited_once_with(page)
+        self.migration_context.source_datasource_info.repo.read_page.assert_awaited_once_with(page, expected_execution_context)
         self.assertIsInstance(result, TaskPage)
         self.assertEqual(result.Id, page.Id)
         self.assertEqual(result.Properties.Title, mock_page.Properties.Title)

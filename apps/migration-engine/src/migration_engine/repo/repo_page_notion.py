@@ -224,6 +224,10 @@ class NotionRepository(
     def convert_client_page(self, result: Dict[str, Any]) -> C:
         pass
 
+    @abstractmethod
+    async def read_page(self, page: BasePage, execution_context: ExecutionContext) -> C:
+        pass
+
     # pylint: disable=too-many-positional-arguments, too-many-arguments, too-many-locals
     # pylint: disable=unused-argument, global-statement
     @error_handling
@@ -423,10 +427,13 @@ class NotionRepository(
 
 class NotionRepoSource(NotionRepository[TaskPage]):
     # pylint: disable=invalid-overridden-method
-    async def read_page(self, page: BasePage, debug: bool=False) -> TaskPage:
+    async def read_page(self, page: BasePage, execution_context: ExecutionContext) -> TaskPage:
         try:
             raw_result = await self.notion.pages.retrieve(page_id=str(page.Id.Id))
-            return self.convert_client_page(raw_result)
+            task_page = self.convert_client_page(raw_result)
+            if execution_context.debug:
+                logger.debug("JouranlPage retrieved: %s", task_page)
+            return task_page
         except APIResponseError as api_e:
             raise RepositoryError(
                 error_type=type(api_e),
@@ -469,10 +476,13 @@ class NotionRepoSource(NotionRepository[TaskPage]):
 
 class NotionRepoJournal(NotionRepository[JournalPage]):
     # pylint: disable=invalid-overridden-method
-    async def read_page(self, page: BasePage, debug: bool=False) -> JournalPage:
+    async def read_page(self, page: BasePage, execution_context: ExecutionContext) -> JournalPage:
         try:
             raw_result = await self.notion.pages.retrieve(page_id=str(page.Id.Id))
-            return self.convert_client_page(raw_result)
+            journal_page = self.convert_client_page(raw_result)
+            if execution_context.debug:
+                logger.debug("TaskPage retrieved: %s", journal_page)
+            return journal_page
         except APIResponseError as api_e:
             raise RepositoryError(
                 error_type=type(api_e),

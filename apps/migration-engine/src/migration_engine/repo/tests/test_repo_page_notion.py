@@ -31,11 +31,14 @@ class TestNotionRepoTaskPage(unittest.IsolatedAsyncioTestCase):
         self.repo = NotionRepoSource(notion_token="fake_token", time_out_ms=1000, debug=True)
 
     async def test_read_page(self):
+        # Arrange
         page = BasePage(Id=PageId(Id=UUID('{12345678-1234-5678-1234-567812345678}')))
         mock_raw_page = create_mock_api_task_page(page, "Test Page")
         self.mock_notion_client.pages.retrieve.return_value = mock_raw_page.model_dump(mode="json")
+        execution_id = UUID('{02345678-1234-5678-1234-567812345678}')
+        execution_context = ExecutionContext(debug=True, page_size=1, execution_id=execution_id)
 
-        result = await self.repo.read_page(page)
+        result = await self.repo.read_page(page, execution_context)
 
         self.mock_notion_client.pages.retrieve.assert_awaited_once_with(page_id=str(page.Id.Id))
         self.assertIsInstance(result, TaskPage)
@@ -257,8 +260,10 @@ class TestNotionRepoJournalPage(unittest.IsolatedAsyncioTestCase):
         page = BasePage(Id=PageId(Id=UUID('{12345678-1234-5678-1234-567812345678}')))
         mock_raw_page = create_mock_api_task_page(page, "Test Journal Page")
         self.mock_notion_client.pages.retrieve.return_value = mock_raw_page.model_dump(mode="json")
+        execution_id = UUID('{02345678-1234-5678-1234-567812345678}')
+        execution_context = ExecutionContext(debug=True, page_size=1, execution_id=execution_id)
 
-        result = await self.repo.read_page(page)
+        result = await self.repo.read_page(page, execution_context)
 
         self.mock_notion_client.pages.retrieve.assert_awaited_once_with(page_id=str(page.Id.Id))
         self.assertIsInstance(result, JournalPage)
