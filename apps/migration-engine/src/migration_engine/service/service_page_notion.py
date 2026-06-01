@@ -45,6 +45,7 @@ TARGET_PAGES: Dict[PageId, TaskPage | JournalPage | None] = {}
 MIGRATION_TABLE: Dict[PageId, PageId | None] = {}
 
 
+
 class ServicePage(
     ServicePageInterface[BasePage,
                          CommonPage,

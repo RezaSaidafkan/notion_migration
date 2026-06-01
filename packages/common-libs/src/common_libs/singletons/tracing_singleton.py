@@ -3,7 +3,7 @@ from typing import Any, Dict, Optional
 
 import httpx
 
-from common_libs.models.tracing_models import Body
+from common_libs.models.tracing_models import TracePage
 
 LOGGING_CONFIG: Dict[Any, Any] = {
     "version": 1,
@@ -56,17 +56,17 @@ class Tracing(metaclass=Singleton):
         self._port = port
         self._url = f"http://{self._address}:{self._port}"
 
-    def send_trace_page(self, body: Body):
+    def send_trace_page(self, body: TracePage):
         try:
             with httpx.Client() as client:
                 response = client.post(f"{self._url}/trace_page", json=body.model_dump(mode="json"))
                 response.raise_for_status()
         except httpx.HTTPError as t_e:
             raise TracingException(
-                f"Failed to send tracing for:\t{body.page.id}\t{body.trace.function_name}",
+                f"Failed to send tracing for:\t{body.page_id.Id}\t{body.trace.function_name}",
                 ) from t_e
         except Exception as e:
             raise TracingException(
                 f"Unknown issue is sending tracing for:\t\
-                {body.page.id}\t{body.trace.function_name}",
+                {body.page_id.Id}\t{body.trace.function_name}",
                 ) from e

@@ -7,10 +7,8 @@ from typing import Any, Callable, Concatenate, cast
 from migration_engine.repo.notion_object_mapping.notion_object_map import BasePage
 
 from common_libs.models.context import ExecutionContext
+from common_libs.models.monad_models import Failure, Monad
 from common_libs.models.tracing_models import (
-    Body,
-    Failure,
-    Monad,
     TracePage,
     TracePageBody,
 )
@@ -48,9 +46,9 @@ def tracer[T, R, **P](
 
             # 3. Use the extracted page for tracing (only if we have valid context)
             tracing.send_trace_page(
-                Body(
+                TracePage(
                     execution_id=execution_context.execution_id,
-                    page=TracePage(id=page.Id.Id),
+                    page_id=page.Id,
                     trace=TracePageBody(
                         function_name=f"{coro.__module__}.{coro.__name__}",
                         outcome=Monad(success=True, failure=None)
@@ -66,9 +64,9 @@ def tracer[T, R, **P](
             try:
 
                 tracing.send_trace_page(
-                    Body(
+                    TracePage(
                         execution_id=execution_context.execution_id,
-                        page=TracePage(id=page.Id.Id),
+                        page_id=page.Id,
                         trace=TracePageBody(
                             function_name=f"{coro.__module__}.{coro.__name__}",
                             outcome=Monad(

@@ -226,7 +226,6 @@ class TestRetries(unittest.IsolatedAsyncioTestCase):
                 reduce(lambda d, key: d.get(key, {}) if isinstance(d, dict) else None,
                        path, call.args[0].model_dump())
                 for call in tracing_instance.send_trace_page.call_args_list]
-            
             both_exceptions = [
                 d.get("exception_value") for d in results
                 if d is not None and d.get("exception_type", "") in ["RequestTimeoutError", "APIResponseError"]]

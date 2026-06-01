@@ -9,6 +9,8 @@ DEFAULT_TRACING_DB_URI = "sqlite:///database.db"
 class Config(BaseModel):
     tracing_batch_size: int
     tracing_queue_size: int
+    etl_queue_size: int
+    etl_batch_size: int
     tracing_db_uri: str
 
 
@@ -22,6 +24,10 @@ def get_vars():
                                   or DEFAULT_TRACING_BATCH_SIZE),
             "tracing_queue_size": int(env_vars.get("TRACING_QUEUE_SIZE") \
                                   or DEFAULT_TRACING_QUEUE_SIZE),
+            "etl_queue_size": int(env_vars.get("ETL_QUEUE_SIZE") \
+                                  or DEFAULT_TRACING_QUEUE_SIZE),
+            "etl_batch_size": int(env_vars.get("ETL_BATCH_SIZE") \
+                                  or DEFAULT_TRACING_BATCH_SIZE),
             "tracing_db_uri": env_vars.get("TRACING_DB_URI",
                                            DEFAULT_TRACING_DB_URI)
             }

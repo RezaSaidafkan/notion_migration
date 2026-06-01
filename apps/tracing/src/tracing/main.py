@@ -5,31 +5,36 @@ from datetime import datetime
 from functools import partial
 from typing import Optional
 from uuid import UUID
-from xmlrpc.client import Boolean
 
 import uvicorn
-from common_libs.models.tracing_models import Body
+from common_libs.models.tracing_models import TracePage
 from fastapi import BackgroundTasks, FastAPI, Request, Response, status
 from sqlmodel import Session
 
 from tracing.config.load_config import TRACING_CONFIG
 from tracing.db.crud import (
+    add_tracing_batch,
     create_queue,
     create_session,
-    get_results_from_db,
+    get_tracing_by_filter,
     setup_database,
-    write_to_db,
 )
 from tracing.models.trace_filters import TraceFilters
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.WARNING)
 
-write_batch_to_db = partial(write_to_db, batch_size=TRACING_CONFIG.tracing_batch_size)
+add_tracing_batch_p = partial(add_tracing_batch, batch_size=TRACING_CONFIG.tracing_batch_size)
+# upsert_etl_batch_p = partial(upsert_etl_batch, batch_size=TRACING_CONFIG.etl_batch_size)
 
 
-def get_queue(request: Request) -> Queue[Body]:
-    return request.app.state.context.get("queue")
+
+def get_tracing_queue(request: Request) -> Queue[TracePage]:
+    return request.app.state.context.get("tracing_queue")
+
+
+# def get_etl_queue(request: Request) -> Queue[EtlBody]:
+#     return request.app.state.context.get("etl_queue")
 
 
 def get_session(request: Request) -> Session:
@@ -41,33 +46,51 @@ async def lifespan(app: FastAPI):  # pylint: disable=redefined-outer-name
     engine = setup_database(TRACING_CONFIG.tracing_db_uri)
     async with \
         create_session(engine) as session, \
-        create_queue(Body, TRACING_CONFIG.tracing_queue_size) as queue:
+        create_queue(TracePage, TRACING_CONFIG.tracing_queue_size) as tracing_queue:
+        # create_queue(EtlBody, TRACING_CONFIG.etl_queue_size) as etl_queue:
         app.state.context = {"session": session,
-                             "queue": queue}
+                             "tracing_queue": tracing_queue,
+        }
+                             # "etl_queue": etl_queue}
         yield
 
 app = FastAPI(lifespan=lifespan)
 
 @app.post("/trace_page")
-async def trace_page(body: Body, request: Request, background_tasks: BackgroundTasks) -> Response:
-    await get_queue(request).put(body)
+async def trace_page(
+    body: TracePage,
+    request: Request,
+    background_tasks: BackgroundTasks) -> Response:
+    await get_tracing_queue(request).put(body)
     background_tasks.add_task(
-        func=write_batch_to_db,
-        queue=get_queue(request),
+        func=add_tracing_batch_p,
+        queue=get_tracing_queue(request),
         session=get_session(request))
     return Response(status_code=status.HTTP_202_ACCEPTED)
+
+# @app.post("/update_etl")
+# async def update_etl(
+#     body: EtlBody,
+#     request: Request,
+#     background_tasks: BackgroundTasks) -> Response:
+#     await get_etl_queue(request).put(body)
+#     background_tasks.add_task(
+#         func=upsert_etl_batch_p,
+#         session=get_session(request),
+#         queue=get_etl_queue(request))
+#     return Response(status_code=status.HTTP_202_ACCEPTED)
 
 # pylint: disable=too-many-positional-arguments, too-many-arguments
 @app.get("/get_results")
 def get_results( # noqa: PLR0913
     request: Request,
     execution_id: Optional[UUID] = None,
-    failed_only: Optional[Boolean] = False,
+    failed_only: Optional[bool] = False,
     page_id: Optional[UUID] = None,
     cutoff_date: Optional[datetime] = None,
     filtered_error_message: Optional[str] = None,
     function_name: Optional[str] = None) -> Response:
-    bodies = get_results_from_db(
+    bodies = get_tracing_by_filter(
         get_session(request),
         TraceFilters(
             execution_id=execution_id,
@@ -88,7 +111,7 @@ def get_results( # noqa: PLR0913
 
 @app.get("/get_queue_state")
 def get_queue_state(request: Request) -> Response:
-    q_size = get_queue(request).qsize()
+    q_size = get_tracing_queue(request).qsize()
     return Response(str(q_size), status_code=status.HTTP_202_ACCEPTED)
 
 

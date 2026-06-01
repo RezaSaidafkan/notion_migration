@@ -3,7 +3,8 @@ from asyncio import Queue, QueueShutDown
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator, List, Sequence
 
-from common_libs.models.tracing_models import Body
+from common_libs.models.monad_models import Failure, Monad
+from common_libs.models.tracing_models import TracePage
 from fastapi import HTTPException, status
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import (
@@ -13,7 +14,7 @@ from sqlalchemy.exc import (
 )
 from sqlmodel import Session, SQLModel, col, create_engine, select
 
-from tracing.db.models.table import TraceLog
+from tracing.db.models.table import TraceLogTable
 from tracing.models.trace_filters import TraceFilters
 
 logger = logging.getLogger()
@@ -45,32 +46,33 @@ def setup_database(db_uri: str) -> Engine:
     return engine
 
 
-def get_results_from_db(
+def get_tracing_by_filter(
     session: Session,
     filters: TraceFilters,
-) -> Sequence[TraceLog]:
-    statement = select(TraceLog)
+) -> Sequence[TraceLogTable]:
+    statement = select(TraceLogTable)
     if filters.failed_only:
         # pylint: disable=singleton-comparison
         statement = statement.where(
-            TraceLog.success == False)  # noqa: E712
+            TraceLogTable.success == False)  # noqa: E712
     if filters.execution_id:
         statement = statement.where(
-            TraceLog.execution_id == filters.execution_id)
+            TraceLogTable.execution_id == filters.execution_id)
     if filters.cutoff_date:
         statement = statement.where(
-            TraceLog.timestamp >= filters.cutoff_date
+            TraceLogTable.timestamp >= filters.cutoff_date
         )
     if filters.page_id:
         statement = statement.where(
-            TraceLog.page_id == filters.page_id)
+            TraceLogTable.page_id == filters.page_id)
     if filters.filtered_error_message:
         statement = statement.where(
-            col(TraceLog.outcome_exception_traceback).contains(filters.filtered_error_message)
+            TraceLogTable.exception_value
+             == filters.filtered_error_message
         )
     if filters.function_name:
         statement = statement.where(
-            col(TraceLog.function_name).contains(filters.function_name)
+            col(TraceLogTable.function_name).contains(filters.function_name)
         )
 
     try:
@@ -81,31 +83,37 @@ def get_results_from_db(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR) from None
 
 
-async def write_to_db(session: Session, queue: Queue[Body], batch_size: int):
+async def add_tracing_batch(session: Session, queue: Queue[TracePage], batch_size: int):
     if queue.qsize() >= batch_size:
         batch_index = 0
-        consumed_queue: List[Body] = []
+        consumed_queue: List[TracePage] = []
         for _ in range(batch_index, batch_size):
             try:
                 body = await queue.get()
                 consumed_queue.append(body)
-                trace_log = TraceLog(
+                outcome: Monad
+                if body.trace.outcome.success:
+                    outcome=Monad(
+                        success=True,
+                        failure=None)
+                elif body.trace.outcome.failure is not None and body.trace.outcome.success is False:
+                    outcome=Monad(
+                        success=False,
+                        failure=Failure(
+                            exception_type=body.trace.outcome.failure.exception_type,
+                            exception_value=body.trace.outcome.failure.exception_value,
+                            exception_traceback=body.trace.outcome.failure.exception_traceback
+                            )
+                        )
+                else:
+                    raise RuntimeError("Failed outcome should have exception values")
+                trace_log = TraceLogTable(
                     execution_id=body.execution_id,
-                    page_id=body.page.id,
+                    page_id=body.page_id.Id,
                     function_name=body.trace.function_name,
                     timestamp=body.trace.timestamp,
-                    success=body.trace.outcome.success,
-                    outcome_exception_value=None,
-                    outcome_exception_traceback=None,
-                    outcome_exception_type=None
-                    )
-                if body.trace.outcome.failure is not None:
-                    trace_log.outcome_exception_value=\
-                        body.trace.outcome.failure.exception_value
-                    trace_log.outcome_exception_traceback=\
-                        body.trace.outcome.failure.exception_traceback
-                    trace_log.outcome_exception_type=\
-                        body.trace.outcome.failure.exception_type
+                    **outcome.model_dump(mode="python")
+                )
                 session.add(trace_log)
 
             except (QueueShutDown, IntegrityError, OperationalError) as e:
