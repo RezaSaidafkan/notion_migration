@@ -103,12 +103,12 @@ class TestRetries(unittest.IsolatedAsyncioTestCase):
             await build_page_hierarchy()
 
             # Assert
-            path = ["trace", "outcome", "failure"]
+            path = ["trace", "outcome"]
             results = [
                 reduce(lambda d, key: d.get(key, {}) if isinstance(d, dict) else None,
                        path, call.args[0].model_dump())
                 for call in tracing_instance.send_trace_page.call_args_list]
-
+            # breakpoint()
             api_response_error_exceptions = [
                 d.get("exception_value") for d in results
                 if d is not None and d.get("exception_type", "") == "APIResponseError"]
@@ -154,7 +154,7 @@ class TestRetries(unittest.IsolatedAsyncioTestCase):
 
             # Act & Assert
             await build_page_hierarchy()
-            path = ["trace", "outcome", "failure"]
+            path = ["trace", "outcome"]
             results = [
                 reduce(lambda d, key: d.get(key, {}) if isinstance(d, dict) else None,
                        path, call.args[0].model_dump())
@@ -221,7 +221,7 @@ class TestRetries(unittest.IsolatedAsyncioTestCase):
             await build_page_hierarchy()
 
             # Assert
-            path = ["trace", "outcome", "failure"]
+            path = ["trace", "outcome"]
             results = [
                 reduce(lambda d, key: d.get(key, {}) if isinstance(d, dict) else None,
                        path, call.args[0].model_dump())
