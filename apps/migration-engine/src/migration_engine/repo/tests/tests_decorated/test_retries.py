@@ -10,7 +10,7 @@ from common_libs.constants.literal_definitions import JunctionRelationDefinition
 from httpx import Response
 from notion_client.errors import APIErrorCode, APIResponseError, RequestTimeoutError
 
-from migration_engine.repo.tests.utils import create_mock_api_task_page, create_mock_api_journal_page, create_mock_api_journal_update
+from migration_engine.repo.tests.utils import create_mock_api_task_page
 
 tests_dir_path = Path().cwd().joinpath(
     "apps/migration-engine/src/migration_engine/repo/tests/tests_decorated/")

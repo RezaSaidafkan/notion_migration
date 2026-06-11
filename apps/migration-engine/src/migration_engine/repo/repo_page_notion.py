@@ -157,7 +157,9 @@ def set_on_exhausted(retry_state: RetryCallState):
     global ACTIVE_CALL_ID  # noqa: PLW0603, pylint: disable=global-statement
     ACTIVE_CALL_ID = None
     logger.debug("Retry loop exhausted, EVENT is 'Set'")
-    raise RuntimeError("Retry loop exhausted")
+    # Re-raise the last exception encountered during retries so it can be traced
+    if retry_state.outcome:
+        retry_state.outcome.result()  # This will raise the original exception
 
 
 def synchronization_gating[T, R, **P](

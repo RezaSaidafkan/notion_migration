@@ -1,3 +1,5 @@
+from abc import ABC
+from dataclasses import dataclass
 from datetime import datetime
 from typing import List, Optional
 from uuid import UUID, uuid4
@@ -15,114 +17,100 @@ class TraceLogTable(SQLModel, table=True):
     exception_value: Optional[str] = None
     exception_traceback: Optional[str] = None
 
-    source_page_extracted: Optional["SourcePageExtractionTable"] = \
-        Relationship(back_populates="traces")
-    source_page_related_extracted_pages: Optional[List["SourceRelatedPageExtractionTable"]] = \
-        Relationship(back_populates="traces")
-    loaded_target_page: Optional["LoadedTargetPageTable"] = \
-        Relationship(back_populates="traces")
-    loaded_relations: Optional[List["LoadedRelationsTable"]] = \
-        Relationship(back_populates="traces")
+    stage_source_page_extraction_id: \
+        Optional[UUID] = Field(foreign_key="stagesourcepageextractiontable.id", default=None)
+    source_page_extracted: Optional["StageSourcePageExtractionTable"]\
+        = Relationship(back_populates="traces")
+    stage_source_page_related_pages_extracted_id: Optional[UUID]\
+        = Field(foreign_key="stagesourcepagerelatedextractiontable.id", default=None)
+    source_related_pages_extracted: Optional["StageSourcePageRelatedExtractionTable"]\
+        = Relationship(back_populates="traces")
+    stage_target_page_loaded_id: Optional[UUID] \
+        = Field(foreign_key="stagetargetpageloadedtable.id", default=None)
+    target_page_loaded: Optional["StageTargetPageLoadedTable"]\
+        = Relationship(back_populates="traces")
+    stage_target_page_relations_loaded_id: Optional[UUID]\
+        = Field(foreign_key="stagetargetpagerelationsloadedtable.id", default=None)
+    target_page_relations_loaded: Optional["StageTargetPageRelationsLoadedTable"] \
+        = Relationship(back_populates="traces")
 
 class ETLTable(SQLModel, table=True):
-    id: UUID = Field(primary_key=True, unique=True)
-    source_page: Optional[SourcePageIdTable] = Relationship(back_populates="elt")
-    target_page: Optional[TargetPageIdTable] = Relationship(back_populates="elt")
-
-class SourcePageIdTable(SQLModel, table=True):
-    id: UUID = Field(primary_key=True, unique=True)
-    etl_id: UUID = Field(foreign_key="etltable.id")
-
-    elt: ETLTable = Relationship(back_populates="source_page")
-    extracted_source_page: Optional[List["SourcePageExtractionTable"]] = \
-        Relationship(back_populates="page")
-    extracted_source_related_pages: Optional[List["SourceRelatedPageExtractionTable"]] = \
-        Relationship()
+    id: UUID = Field(primary_key=True, unique=True, default_factory=uuid4)
+    stage_source_page_extraction: "StageSourcePageExtractionTable" \
+        = Relationship(back_populates="etl")
+    stage_source_page_related_pages_extracted: Optional["StageSourcePageRelatedExtractionTable"] \
+        = Relationship(back_populates="etl")
+    stage_target_page_loaded: Optional["StageTargetPageLoadedTable"] \
+        = Relationship(back_populates="etl")
+    stage_target_page_relations_loaded: Optional["StageTargetPageRelationsLoadedTable"] \
+        = Relationship(back_populates="etl")
 
 
-class TargetPageIdTable(SQLModel, table=True):
-    id: UUID = Field(primary_key=True, unique=True)
-    etl_id: UUID = Field(foreign_key="etltable.id")
-
-    elt: ETLTable = Relationship(back_populates="target_page")
-    loaded_target_page: Optional["LoadedTargetPageTable"] = \
-        Relationship(back_populates="page")
-    loaded_relations: Optional[List["LoadedRelationsTable"]] = \
-        Relationship(back_populates="relations")
-
-class SourcePageExtractionTable(SQLModel, table=True):
+class StageSourcePageExtractionTable(SQLModel, table=True):
     id: UUID = Field(primary_key=True)
-    page_id: UUID = Field(foreign_key="sourcepageidtable.id")
-    trace_id: UUID = Field(foreign_key="tracelogtable.execution_id")
+    etl_id: Optional[UUID] = Field(foreign_key="etltable.id", default=None)
+    etl: ETLTable = Relationship(back_populates="stage_source_page_extraction")
 
-    page: Optional[SourcePageIdTable] = Relationship(back_populates="extracted_source_page")
+    # Foreign key for the one-to-many relationship:
+    # many extraction tables can relate to one related extraction table
+    related_extraction_id: Optional[UUID] = \
+        Field(foreign_key="stagesourcepagerelatedextractiontable.id", default=None)
+    related_page_stage: Optional["StageSourcePageRelatedExtractionTable"]\
+        = Relationship(back_populates="related_pages")
+
     traces: List[TraceLogTable] = Relationship(back_populates="source_page_extracted")
 
-class SourceRelatedPageExtractionTable(SQLModel, table=True):
+class StageSourcePageRelatedExtractionTable(SQLModel, table=True):
     id: UUID = Field(primary_key=True)
-    page_id: UUID = Field(foreign_key="sourcepageidtable.id")
-    trace_id: UUID = Field(foreign_key="tracelogtable.execution_id")
 
-    pages: List[SourcePageIdTable] = Relationship(back_populates="extracted_source_related_pages")
-    traces: List[TraceLogTable] = Relationship(back_populates="source_page_related_extracted_pages")
+    etl_id: Optional[UUID] = Field(foreign_key="etltable.id", default=None)
+    etl: ETLTable = Relationship(back_populates="stage_source_page_related_pages_extracted")
 
-class LoadedTargetPageTable(SQLModel, table=True):
+    # One-to-many relationship: this extraction table has many related extraction tables
+    related_pages: List["StageSourcePageExtractionTable"]\
+        = Relationship(back_populates="related_page_stage")
+
+    traces: List[TraceLogTable]\
+        = Relationship(back_populates="source_related_pages_extracted")
+
+class StageTargetPageLoadedTable(SQLModel, table=True):
     id: UUID = Field(primary_key=True)
-    page_id: UUID = Field(foreign_key="targetpageidtable.id")
-    trace_id: UUID = Field(foreign_key="tracelogtable.execution_id")
 
-    page: Optional[TargetPageIdTable] = Relationship(back_populates="loaded_target_page")
-    traces: List[TraceLogTable] = Relationship(back_populates="loaded_target_page")
+    etl_id: Optional[UUID] = Field(foreign_key="etltable.id", default=None)
+    etl: ETLTable = Relationship(back_populates="stage_target_page_loaded")
 
-class LoadedRelationsTable(SQLModel, table=True):
+    stage_loaded_related_id: Optional[UUID]\
+        = Field(foreign_key="stagetargetpagerelationsloadedtable.id", default=None)
+    relation_stage: "StageTargetPageRelationsLoadedTable"\
+        = Relationship(back_populates="loaded_related_pages")
+
+    traces: List[TraceLogTable] = Relationship(back_populates="target_page_loaded")
+
+class StageTargetPageRelationsLoadedTable(SQLModel, table=True):
     id: UUID = Field(primary_key=True)
-    page_ids: UUID = Field(foreign_key="targetpageidtable.id")
-    trace_id: UUID = Field(foreign_key="tracelogtable.execution_id")
 
-    relations: Optional[List[TargetPageIdTable]] = Relationship(back_populates="loaded_relations")
-    traces: List[TraceLogTable] = Relationship(back_populates="loaded_relations")
-##
-# class RelationSet(SQLModel):
-#     id: PageId = Field(primary_key=True)
-#     target_page_id: PageId
-#     outcome: Monad
+    etl_id: Optional[UUID] = Field(foreign_key="etltable.id", default=None)
+    etl: ETLTable = Relationship(back_populates="stage_target_page_relations_loaded")
 
-# class Loaded(SQLModel):
-#     id: PageId = Field(primary_key=True)
-#     outcome: Monad
-#     target_page_id: PageId
+    loaded_related_pages: Optional[List["StageTargetPageLoadedTable"]]\
+        = Relationship(back_populates="relation_stage")
 
-# class Extracted(SQLModel):
-#     id: PageId = Field(primary_key=True)
-#     outcome: Monad
+    traces: List[TraceLogTable] = Relationship(back_populates="target_page_relations_loaded")
 
-# class ExtractedSubpages(SQLModel):
-#     id: PageId = Field(primary_key=True)
-#     outcome: Monad
-#     sub_pages: Sequence[PageId]
 
-# class RelationsSet(SQLModel):
-#     id: PageId = Field(primary_key=True)
-#     outcome: Monad
-#     relations_set: Sequence[RelationSet]
+@dataclass
+class Stage(ABC):
+    pass
 
-# type EtlBody = Extracted | ExtractedSubpages | Loaded | RelationsSet
-
-# class Monad(SQLModel):
-#     success: bool
-#     failure: Optional[Failure] = None
-
-# class Failure(SQLModel):
-#     exception_type: str
-#     exception_value: str
-#     exception_traceback: str
-
-# class TracePage(SQLModel):
-#     execution_id: UUID
-#     page_id: PageId
-#     trace: TracePageBody
-
-# class TracePageBody(SQLModel):
-#     function_name: str
-#     outcome: Monad
-#     timestamp: datetime = datetime.fromtimestamp(time.time())
+@dataclass
+class SourcePageExtraction(Stage):
+    ...
+@dataclass
+class SourcePageRelatedExtraction(Stage):
+    ...
+@dataclass
+class TargetPageLoaded(Stage):
+    ...
+@dataclass
+class TargetPageRelationsLoaded(Stage):
+    ...
