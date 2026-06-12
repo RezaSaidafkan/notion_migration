@@ -8,7 +8,7 @@ from common_libs.utils.rate_limiter import rate_limited
 from common_libs.utils.tracing import tracer
 
 
-def bridger(original_decorator: Callable[..., Callable[..., Any]]):
+def bridger_rate_limited(original_decorator: Callable[..., Callable[..., Any]]):
     @wraps(original_decorator)
     def bridge_decorator(decorated_func: Callable[..., Any]):
         @wraps(decorated_func)
@@ -20,9 +20,27 @@ def bridger(original_decorator: Callable[..., Callable[..., Any]]):
         return bridge_wrapper
     return bridge_decorator
 
+def bridger_tracer(original_decorator: Callable[..., Callable[..., Any]]):
+    @wraps(original_decorator)
+    def bridge_decorator(stage: Any):
+        def bridge_decorator(decorated_func: Callable[..., Any]):
+            @wraps(decorated_func)
+            async def bridge_wrapper(*args2: Any, **kwargs2: Any):
+                if config.DECORATOR_MOCK_ACTIVATED:
+                    # Only calls the enclosed function, no extra side effects
+                    return await decorated_func(*args2, **kwargs2)
+                return await original_decorator(stage)(decorated_func)(*args2, **kwargs2)
+            return bridge_wrapper
+        return bridge_decorator
+    return bridge_decorator
 
-TRACING_PATCH = patch('common_libs.utils.tracing.tracer', bridger(tracer))
-RATE_LIMITED_PATCH = patch('common_libs.utils.rate_limiter.rate_limited', bridger(rate_limited))
+
+TRACING_PATCH = patch(
+    'common_libs.utils.tracing.tracer',
+    bridger_tracer(tracer))
+RATE_LIMITED_PATCH = patch(
+    'common_libs.utils.rate_limiter.rate_limited',
+    bridger_rate_limited(rate_limited))
 
 TRACING_PATCH.start()
 RATE_LIMITED_PATCH.start()

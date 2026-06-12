@@ -220,7 +220,7 @@ class TestNotionRepoTaskPage(unittest.IsolatedAsyncioTestCase):
         expected_dict = mock_task_page_updated.model_dump(mode="json", by_alias=True, exclude={"Id"}, exclude_unset=True)
         
         # Act
-        await self.repo.update_page(
+        await self.repo.update_target_page(
             page=mock_task_page_updated,
             execution_context=execution_context,
             parent_page_id=parent_page_id,

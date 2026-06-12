@@ -44,7 +44,7 @@ class RepositoryInterface(Generic[BP, C, RD], ABC):
     @abstractmethod
     async def read_page(self, page: BP, execution_context: ExecutionContext
     ) -> C:
-        pass
+        ...
 
     # pylint: disable=too-many-positional-arguments, too-many-arguments
     @abstractmethod
@@ -56,7 +56,7 @@ class RepositoryInterface(Generic[BP, C, RD], ABC):
         relation: RD,
         cursor: str | None = None
     ) -> PaginationResult[C]:
-        pass
+        ...
 
     @abstractmethod
     async def create_page(
@@ -65,13 +65,22 @@ class RepositoryInterface(Generic[BP, C, RD], ABC):
         execution_context: ExecutionContext,
         parent_page_id: UUID,
     ) -> C:
-        pass
+        ...
 
     @abstractmethod
-    async def update_page(
+    async def update_source_page(
         self,
         page: C,
         execution_context: ExecutionContext,
         parent_page_id: Optional[UUID] = None,
     ) -> bool:
-        pass
+        ...
+
+    @abstractmethod
+    async def update_target_page(
+        self,
+        page: C,
+        execution_context: ExecutionContext,
+        parent_page_id: Optional[UUID] = None,
+    ) -> bool:
+        ...

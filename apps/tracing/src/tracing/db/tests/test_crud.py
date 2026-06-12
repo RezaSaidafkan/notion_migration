@@ -207,6 +207,7 @@ class TestTraceTableCrud(unittest.TestCase):
                 execution_id=execution_id,
                 page_id=page,
                 trace=trace,
+                stage=SourcePageExtraction(),
             )
             await queue.put(body)
             

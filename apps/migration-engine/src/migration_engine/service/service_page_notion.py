@@ -28,6 +28,12 @@ from common_libs.models.context import (
 )
 from common_libs.utils.tracing import tracer
 from marshmallow import ValidationError
+from tracing.db.models.table import (
+    SourcePageExtraction,
+    SourcePageRelatedExtraction,
+    TargetPageLoaded,
+    TargetPageRelationsLoaded,
+)
 
 from migration_engine.repo.repo_page_interface import (
     RepositoryError,
@@ -63,7 +69,7 @@ class ServicePage(
         self._service_execution_context: ServiceExecutionContext
 
     # pylint: disable=invalid-overridden-method
-    @tracer
+    @tracer(SourcePageExtraction())
     async def read_page(
         self,
         page: BasePage,
@@ -87,7 +93,6 @@ class ServicePage(
                 f"Failed to read page_id: {page}") from re
 
     # pylint: disable=invalid-overridden-method, too-many-locals
-    @tracer
     async def query_database(
         self,
         page: BasePage,
@@ -152,7 +157,7 @@ class ServicePage(
         return pages
 
     # pylint: disable=invalid-overridden-method
-    @tracer
+    #@tracer(SourcePageRelatedExtraction())
     async def build_page_hierarchy(
         self,
         page: TaskPage | JournalPage,
@@ -192,7 +197,7 @@ class ServicePage(
 
     # pylint: disable=invalid-overridden-method
     # pylint: disable=too-many-positional-arguments, too-many-arguments
-    @tracer
+    @tracer(SourcePageRelatedExtraction())
     def get_task_sub_pages(
         self,
         page: CommonPage,
@@ -259,7 +264,7 @@ class ServicePage(
             "This method should be implemented in the service layer."
         )
 
-    @tracer
+    @tracer(TargetPageLoaded())
     async def migrate_page(
         self,
         page: TaskPage | JournalPage,
@@ -322,7 +327,7 @@ class ServicePage(
         )
 
     @singledispatchmethod
-    @tracer
+    @tracer(SourcePageExtraction())
     async def process_page_recursive(
         self,
         page: TaskPage | JournalPage,
@@ -490,7 +495,7 @@ class ServicePage(
         except ValidationError:
             raise ServiceError("Failed to assign relationships.") from None
 
-    @tracer
+    @tracer(SourcePageRelatedExtraction())
     async def _extract_level_pages(
         self,
         page: TaskPage | JournalPage,
@@ -577,7 +582,7 @@ class ServicePage(
 
         return target_task_page, task_subpages, task_journal_pages
 
-    @tracer
+    @tracer(TargetPageRelationsLoaded())
     def _get_task_load_relation(
         self,
         page: TaskPage,
@@ -600,7 +605,7 @@ class ServicePage(
 
         self.assign_relationships(page, target_relations)
         target_task_page_relation_task: Coroutine[Any, Any, bool] = \
-            migration_context.target_datasource_info.repo.update_page(
+            migration_context.target_datasource_info.repo.update_target_page(
                 page=page,
                 execution_context=execution_context
         )

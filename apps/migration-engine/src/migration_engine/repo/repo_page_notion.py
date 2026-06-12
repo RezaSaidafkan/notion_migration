@@ -51,6 +51,12 @@ from tenacity import (
 )
 from tenacity.stop import stop_base
 from tenacity.wait import wait_base
+from tracing.db.models.table import (
+    SourcePageExtraction,
+    SourcePageRelatedExtraction,
+    TargetPageLoaded,
+    TargetPageRelationsLoaded,
+)
 
 from migration_engine.repo.notion_object_mapping.notion_object_map import translate
 from migration_engine.repo.repo_page_interface import (
@@ -250,7 +256,7 @@ class NotionRepository(
         retry_error_callback=set_on_exhausted,
         stop=stop_after_attempt_dynamic(),
         )
-    @tracer
+    @tracer(SourcePageExtraction())
     @synchronization_gating
     async def _read_query_database(
         self,
@@ -285,7 +291,6 @@ class NotionRepository(
         logger.debug("Result for '%s': '%s' hits.", page.Id.Id, len(result.results))
         return result
 
-    @tracer
     async def query_database(
         self,
         page: BasePage,
@@ -300,6 +305,42 @@ class NotionRepository(
             data_source_id=data_source_id,
             relation=relation,
             cursor=cursor)
+
+    @tracer(TargetPageRelationsLoaded())
+    async def update_target_page(
+        self,
+        page: C,
+        execution_context: ExecutionContext,
+        parent_page_id: Optional[UUID] = None,
+    ) -> bool:
+        # constrain the PageUpdate.Properties to parent_page:
+        # Datasource (the type is not implemented yet)
+        # To change the properties of a page in a data source, use the properties body parameter.
+        # This parameter can only be used if the page’s parent is a data source,
+        # aside from updating the title of a page outside of a data source.
+        return await self._update_page(
+            page=page,
+            execution_context=execution_context,
+            parent_page_id=parent_page_id,
+            )
+
+    @tracer(SourcePageRelatedExtraction())
+    async def update_source_page(
+        self,
+        page: C,
+        execution_context: ExecutionContext,
+        parent_page_id: Optional[UUID] = None,
+    ) -> bool:
+        # constrain the PageUpdate.Properties to parent_page:
+        # Datasource (the type is not implemented yet)
+        # To change the properties of a page in a data source, use the properties body parameter.
+        # This parameter can only be used if the page’s parent is a data source,
+        # aside from updating the title of a page outside of a data source.
+        return await self._update_page(
+            page=page,
+            execution_context=execution_context,
+            parent_page_id=parent_page_id,
+            )
 
     # pylint: disable=too-many-positional-arguments, too-many-arguments, too-many-locals
     # pylint: disable=unused-argument, global-statement
@@ -320,26 +361,8 @@ class NotionRepository(
         retry_error_callback=set_on_exhausted,
         stop=stop_after_attempt_dynamic(),
         )
-    @tracer
     @synchronization_gating
-    async def update_page(
-        self,
-        page: C,
-        execution_context: ExecutionContext,
-        parent_page_id: Optional[UUID] = None,
-    ) -> bool:
-        # constrain the PageUpdate.Properties to parent_page:
-        # Datasource (the type is not implemented yet)
-        # To change the properties of a page in a data source, use the properties body parameter.
-        # This parameter can only be used if the page’s parent is a data source,
-        # aside from updating the title of a page outside of a data source.
-        return await self._update_page(
-            page=page,
-            execution_context=execution_context,
-            parent_page_id=parent_page_id,
-            )
-
-    @tracer
+    @tracer(SourcePageRelatedExtraction())
     async def _update_page(
         self,
         page: C,
@@ -363,7 +386,6 @@ class NotionRepository(
             logger.debug("Page updated: '%s'", result)
         return True
 
-    @tracer
     async def create_page(
         self,
         page: C,
@@ -394,7 +416,7 @@ class NotionRepository(
         retry_error_callback=set_on_exhausted,
         stop=stop_after_attempt_dynamic(),
         )
-    @tracer
+    @tracer(TargetPageLoaded())
     @synchronization_gating
     async def _create_page(
         self,
